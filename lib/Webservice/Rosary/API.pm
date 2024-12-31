@@ -208,7 +208,9 @@ There is no set up other than a working Perl environment and required modules.
 =head1 BUGS AND SUPPORT
 
 Please report bugs to the Github issue tracker; also report back how to improve
-this library and the commandline utility.
+this library and the commandline utility:
+
+L<https://github.com/oodler577/p5-Webservice-Rosary-API/issues>
 
 =head1 BACKGROUND ON THE ROSARY
 
