@@ -136,7 +136,23 @@ used to derive the proper day to be used with this call.
 
 =back
 
-=head1 C<AveMaria> UTILITY
+Rosary API calls that are not currently supported:
+
+=over 4
+
+=item C</v1/list>
+
+=item C</v1/date/:MMDDYY>
+
+=item C</v1/novena>
+
+=item C</v1/novena/:MMDDYY>
+
+=item C</v1/54daynovena>
+
+=back
+
+=head1 THE C<AveMaria> UTILITY
 
 The C<AveMaria> commandline Rosary client is installed with this module. The
 following is essentially verbatim from the client using the C<help> command.
