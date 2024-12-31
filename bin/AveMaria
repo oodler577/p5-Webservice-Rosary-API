@@ -27,7 +27,76 @@ my $subcommand = shift @ARGV;
 
 sub do_help() {
   print STDERR <<EOF;
-help ...
+AveMaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf  
+
+There are 2 types of commands. One set of commands returns a URL for an MP3,
+which may then be piped into another program to download it. The other set
+of commands displays the specified Mystery (by day of the week or actual
+name of the Mystery), so that the user may be guided through the specified
+Mystery of the Rosary - from start to finish.
+
+Usage - to print MP3 URL to STDIN:
+
+  AveMaria today|yesterday|tomorrow|random
+
+Example 1,
+
+  > AveMaria today
+  > https://dailyrosary.cf/audio-rosary-sorrowful-mysteries.mp3
+   
+Example 2,
+
+  > curl -O \$(AveMaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
+    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                   Dload  Upload   Total   Spent    Left  Speed
+  100 31.5M  100 31.5M    0     0  2374k      0  0:00:13  0:00:13 --:--:-- 5043k
+  
+  Downloaded file: audio-rosary-sorrowful-mysteries.mp3
+  >
+
+Usage - to Pray the Rosary in the commandline:
+
+  AveMaria DAY_OR_MYSTERY AveMaria [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
+
+  DAY_OR_MYSTERY valid values:
+
+    Joyful, Sorrowful, Luminous, Glorious, Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday
+
+  Optional flags:
+
+  --pray   : automatically prints prayers, character by character to the screen; default delay is 0.4 seconds.
+   -i      : user must hit <RETURN> after each prayer (and description, if used with "--fully"
+   -t      : user must hit <RETURN> after each description (requires --fully)
+  --fully  : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
+  --sleep  : affects the delay taken before each new character is printed (when used with --pray). Default is 0.4 seconds.
+
+Example 3,
+
+  Used without options, it just prints the name of the Mystery
+
+  > AveMaria Monday
+  > Monday - The Joyful Mysteries
+  >
+
+  > AveMaria Sorrowful
+  > Friday - The Sorrowful Mysteries
+  >
+
+Example 4,
+
+  > AveMaria Friday --pray -t --fully
+  > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
+    while pausing only at the beginning of each Mystery after the description has
+    been printed.
+
+Feedback is Requested.
+
+I have no idea how this is going to be used, and the way someone says the Rosary
+tends to be highly personal; so please let me know what kind of "--pray" controls
+would be helpful.
+
++Deus Gratias+
+  
 EOF
 }
 
@@ -43,7 +112,7 @@ dispatch { # Dispatch::Fu
   return "help";
 } [ $Rosary, lc $subcommand, \@ARGV ],
   mp3     => sub { my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; say $Rosary->mp3Link($subcommand, $ARGV); exit EXIT_SUCCESS },
-  day     => \&day,
+  day     => \&PrayTheRosary,
   mystery => \&mystery,
   help    => \&do_help,
 ;
@@ -58,40 +127,40 @@ sub mystery {
     glorious  => "sunday",
   };
   $subcommand = $Convert->$subcommand;
-  return day([$Rosary, $subcommand, $ARGV]);
+  return PrayTheRosary([$Rosary, $subcommand, $ARGV]);
 }
 
 sub _print($$) {
   my ($Text, $o) = @_;
-  my @words = split / /, $Text;
+  my @words = split //, $Text;
   foreach my $Word (@words) {
-    printf "%s ", $Word;
-    sleep $o->delay;
+    printf "%s", $Word;
+    sleep $o->sleep;
   }
   return;
 }
 
-sub day {
+sub PrayTheRosary {
   my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; 
-  my $o = Getopt2h2o $ARGV, { delay => 0.3 }, qw/delay=s full i p say/;
+  my $o = Getopt2h2o $ARGV, { sleep => 0.04 }, qw/pray i t fully without sleep=s/;
   my $Mystery = $Rosary->day($subcommand, $ARGV);
   my $Full;
-  if ($o->full) {
-    $Full = $Rosary->Decades(lc $Mystery->group_by);
+  if ($o->fully) {
+    $Full = $Rosary->details(lc $Mystery->group_by);
   }
   my $Name    = sprintf "%s - The %s Mysteries", ucfirst $subcommand, $Mystery->group_by;
-  unless ($o->say) {
+  unless ($o->pray) {
     say $Name;
     exit EXIT_SUCCESS;
   }
-  # iterate over the entire Rosary
+  # Iterate over the entire Rosary, in Perl
   my @Prayers       = qw/In_The_Name_1 I_Believe Our__Father_1 Hail__Mary_1 Hail__Mary_2 Hail__Mary_3 Glory_Be_1 Oh_My_Jesus_1/;
   my $Decade        = 0;
   my $Announce      = 0;
-  my $Pater_Noster  = 1;
-  my $Ave_Maria     = 3;
-  my $Gloria_Patria = 1;
-  my $O_Mi_Jesu     = 1;
+  my $Pater_Noster  = 1; # "Our Father, who art in Heaven ..."
+  my $Ave_Maria     = 3; # "Hail Mary, full of Grace ..."
+  my $Gloria_Patria = 1; # "Glory be to the Father, to the Son, and to the Holy Ghost ..."
+  my $O_Mi_Jesu     = 1; # "O My Jesus, forgive us our sins ..." (aka, "The Fatima Prayer")
   foreach my $D (1..5) {
     push @Prayers, sprintf "Announce_%d",   ++$Announce;
     push @Prayers, sprintf "Our__Father_%d", ++$Pater_Noster;
@@ -101,24 +170,26 @@ sub day {
     push @Prayers, sprintf "Glory_Be_%d", ++$Gloria_Patria;
     push @Prayers, sprintf "Oh_My_Jesus_%d", ++$O_Mi_Jesu;
   }
-  push @Prayers, qw/Holy_Queen Pray_For_Us Oremus Final_Prayer In_The_Name_2/;
+  push @Prayers, qw/Holy_Queen Pray_For_Us_Most_Holy_Mother_of_God Oremus Final_Prayer Most_Holy_Rosary In_The_Name_2/;
   $Mystery = tr4h2o o2d $Mystery;
-  $Mystery->{pray_for_us} = <<EOF;
+  $Mystery->{pray_for_us_most_holy_mother_of_god} = <<EOF;
 V. Pray for us, Oh Holy Mother of God
 R. That we may be made worth of the promises of Christ.
 EOF
   $Mystery->{oremus} = "V. Let us Pray.";
+  $Mystery->{most_holy_rosary} = "";
+  $Mystery->{in_the_name_2} = sprintf "The Most Holy Rosary.\n%s" . $Mystery->{in_the_name_2};
   h2o $Mystery;
   my $count  = 0;
   my $decade = 0;
   foreach my $Prayer (map { lc } @Prayers) {
     my $Text = $Mystery->$Prayer; 
     $Text =~ s/\\r\\n|\\n/\n/g; 
-    $Text =~ s/Lead/\nLead/;
-    print "\033[2J\033[H"; # clear terminal screen
+    $Text =~ s/Lead/\nLead/; # us to Heaven
+    print "\033[2J\033[H";   # clear terminal
     my $align = sprintf "%30s ", $Name;
     printf "%s% 2d/%d\n\n", $align, ++$count, scalar @Prayers;
-    if ($o->full and $Prayer =~ m/Announce/i) {
+    if ($o->fully and $Prayer =~ m/Announce/i) {
       my $details = $Full->[$decade++];
       _print $details->title, $o;
       print "\n\n";
@@ -127,13 +198,13 @@ EOF
       _print $details->fruit, $o;
       print "\n\n";
       if ($o->i or $o->p) {
-        print "\n\n<Return> to continue ... ";
+        print "\n\n<RETURN> to continue ... ";
         my $next = <STDIN>
       }
     }
     _print $Text, $o;
     if ($o->i) {
-      print "\n\n<Return> to continue ... ";
+      print "\n\n<RETURN> to continue ... ";
       my $next = <STDIN>
     }
   }
