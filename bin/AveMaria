@@ -56,9 +56,9 @@ Example 2,
 
 Usage - to Pray the Rosary in the commandline:
 
-  AveMaria DAY_OR_MYSTERY AveMaria [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
+  AveMaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
 
-  DAY_OR_MYSTERY valid values:
+  Valid DAY_OR_MYSTERY values:
 
     Joyful, Sorrowful, Luminous, Glorious, Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday
 
@@ -72,7 +72,7 @@ Usage - to Pray the Rosary in the commandline:
 
 Example 3,
 
-  Used without options, it just prints the name of the Mystery
+  Used without additional options, it just prints the name of the Mystery
 
   > AveMaria Monday
   > Monday - The Joyful Mysteries
@@ -87,7 +87,14 @@ Example 4,
   > AveMaria Friday --pray -t --fully
   > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
     while pausing only at the beginning of each Mystery after the description has
-    been printed.
+    been printed ...
+
+Example 5,
+
+  Run with absolutely no subcommands or flags, runs "--pray" for Today's Mystery,
+
+  > AveMaria
+  > .. clears screen, the plays the specified Mystery for Today ...
 
 Feedback is Requested.
 
@@ -109,7 +116,7 @@ dispatch { # Dispatch::Fu
   return "mp3"  if (grep { m/^$subcommand$/i } @mp3);
   return "day" if (grep { m/^$subcommand$/i } @day);
   return "mystery" if (grep { m/^$subcommand$/i } @mystery);
-  return "help";
+  return "day";
 } [ $Rosary, lc $subcommand, \@ARGV ],
   mp3     => sub { my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; say $Rosary->mp3Link($subcommand, $ARGV); exit EXIT_SUCCESS },
   day     => \&PrayTheRosary,
@@ -142,6 +149,10 @@ sub _print($$) {
 
 sub PrayTheRosary {
   my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; 
+  my @days_of_week = qw(Sunday Monday Tuesday Wednesday Thursday Friday Saturday);
+  my ($sec, $min, $hour, $mday, $mon, $year, $wday) = localtime();
+  $subcommand ||= lc $days_of_week[$wday];
+  $ARGV       = (@$ARGV) ? $ARGV : ['--pray'];
   my $o = Getopt2h2o $ARGV, { sleep => 0.04 }, qw/pray i t fully without sleep=s/;
   my $Mystery = $Rosary->day($subcommand, $ARGV);
   my $Full;
@@ -186,9 +197,10 @@ EOF
     my $Text = $Mystery->$Prayer; 
     $Text =~ s/\\r\\n|\\n/\n/g; 
     $Text =~ s/Lead/\nLead/; # us to Heaven
+    sleep 0.75;              # slight pause
     print "\033[2J\033[H";   # clear terminal
     my $align = sprintf "%30s ", $Name;
-    printf "%s% 2d/%d\n\n", $align, ++$count, scalar @Prayers;
+    printf "%s[%-2d of %d]\n\n", $align, ++$count, scalar @Prayers;
     if ($o->fully and $Prayer =~ m/Announce/i) {
       my $details = $Full->[$decade++];
       _print $details->title, $o;

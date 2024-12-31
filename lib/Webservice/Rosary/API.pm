@@ -168,9 +168,9 @@ I<Example 2>,
 
 B<Usage - to Pray the Rosary in the commandline:>
 
-  AveMaria DAY_OR_MYSTERY AveMaria [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
+  AveMaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
 
-  DAY_OR_MYSTERY valid values:
+  Valid DAY_OR_MYSTERY values:
 
     Joyful, Sorrowful, Luminous, Glorious, Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday
 
@@ -200,6 +200,13 @@ I<Example 4>,
   > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
     while pausing only at the beginning of each Mystery after the description has
     been printed.
+
+Example 5,
+
+  Run with absolutely no subcommands or flags, runs "--pray" for Today's Mystery,
+
+  > AveMaria
+  > .. clears screen, the plays the specified Mystery for Today ...
 
 =head1 ENVIRONMENT
 
