@@ -2,7 +2,7 @@
 
 package local::bin::AveMaria;
 
-use v5.12; # using 'state'
+use v5.10;
 use strict;
 use Webservice::Rosary::API qw//;
 use Util::H2O::More qw/ddd Getopt2h2o h2o o2d tr4h2o/;
@@ -140,3 +140,5 @@ EOF
 }
 
 123
+
+__END__
