@@ -1,0 +1,142 @@
+#!/usr/bin/env perl
+
+package local::bin::AveMaria;
+
+use v5.12; # using 'state'
+use strict;
+use Webservice::Rosary::API qw//;
+use Util::H2O::More qw/ddd Getopt2h2o h2o o2d tr4h2o/;
+use Dispatch::Fu;
+use Time::HiRes qw/sleep/;
+use Text::Fold qw/fold_text/;
+
+binmode(STDOUT, ":utf8");
+
+$|++; #autoflush
+
+my $Rosary = Webservice::Rosary::API->new;
+
+our $VERSION = 0.3;
+
+use constant {
+  EXIT_SUCCESS => 0,
+  EXIT_ERROR   => 1,
+};
+
+my $subcommand = shift @ARGV;
+
+sub do_help() {
+  print STDERR <<EOF;
+help ...
+EOF
+}
+
+#>>>
+dispatch { # Dispatch::Fu
+  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
+  my @mp3     = qw/today yesterday tomorrow random/;
+  my @day     = qw/sunday monday tuesday wednesday thursday friday saturday/;
+  my @mystery = qw/joyful glorious sorrowful luminous/;
+  return "mp3"  if (grep { m/^$subcommand$/i } @mp3);
+  return "day" if (grep { m/^$subcommand$/i } @day);
+  return "mystery" if (grep { m/^$subcommand$/i } @mystery);
+  return "help";
+} [ $Rosary, lc $subcommand, \@ARGV ],
+  mp3     => sub { my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; say $Rosary->mp3Link($subcommand, $ARGV); exit EXIT_SUCCESS },
+  day     => \&day,
+  mystery => \&mystery,
+  help    => \&do_help,
+;
+#<<<
+
+sub mystery {
+  my ($Rosary, $subcommand, $ARGV ) = xshift_and_deref @_; 
+  my $Convert = h2o {
+    luminous  => "thursday",
+    sorrowful => "friday",
+    joyful    => "saturday",
+    glorious  => "sunday",
+  };
+  $subcommand = $Convert->$subcommand;
+  return day([$Rosary, $subcommand, $ARGV]);
+}
+
+sub _print($$) {
+  my ($Text, $o) = @_;
+  my @words = split / /, $Text;
+  foreach my $Word (@words) {
+    printf "%s ", $Word;
+    sleep $o->delay;
+  }
+  return;
+}
+
+sub day {
+  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; 
+  my $o = Getopt2h2o $ARGV, { delay => 0.3 }, qw/delay=s full i p say/;
+  my $Mystery = $Rosary->day($subcommand, $ARGV);
+  my $Full;
+  if ($o->full) {
+    $Full = $Rosary->Decades(lc $Mystery->group_by);
+  }
+  my $Name    = sprintf "%s - The %s Mysteries", ucfirst $subcommand, $Mystery->group_by;
+  unless ($o->say) {
+    say $Name;
+    exit EXIT_SUCCESS;
+  }
+  # iterate over the entire Rosary
+  my @Prayers       = qw/In_The_Name_1 I_Believe Our__Father_1 Hail__Mary_1 Hail__Mary_2 Hail__Mary_3 Glory_Be_1 Oh_My_Jesus_1/;
+  my $Decade        = 0;
+  my $Announce      = 0;
+  my $Pater_Noster  = 1;
+  my $Ave_Maria     = 3;
+  my $Gloria_Patria = 1;
+  my $O_Mi_Jesu     = 1;
+  foreach my $D (1..5) {
+    push @Prayers, sprintf "Announce_%d",   ++$Announce;
+    push @Prayers, sprintf "Our__Father_%d", ++$Pater_Noster;
+    foreach my $I (1..10) {
+      push @Prayers, sprintf "Hail__Mary_%d_%d", ++$Ave_Maria, $I;
+    }
+    push @Prayers, sprintf "Glory_Be_%d", ++$Gloria_Patria;
+    push @Prayers, sprintf "Oh_My_Jesus_%d", ++$O_Mi_Jesu;
+  }
+  push @Prayers, qw/Holy_Queen Pray_For_Us Oremus Final_Prayer In_The_Name_2/;
+  $Mystery = tr4h2o o2d $Mystery;
+  $Mystery->{pray_for_us} = <<EOF;
+V. Pray for us, Oh Holy Mother of God
+R. That we may be made worth of the promises of Christ.
+EOF
+  $Mystery->{oremus} = "V. Let us Pray.";
+  h2o $Mystery;
+  my $count  = 0;
+  my $decade = 0;
+  foreach my $Prayer (map { lc } @Prayers) {
+    my $Text = $Mystery->$Prayer; 
+    $Text =~ s/\\r\\n|\\n/\n/g; 
+    $Text =~ s/Lead/\nLead/;
+    print "\033[2J\033[H"; # clear terminal screen
+    my $align = sprintf "%30s ", $Name;
+    printf "%s% 2d/%d\n\n", $align, ++$count, scalar @Prayers;
+    if ($o->full and $Prayer =~ m/Announce/i) {
+      my $details = $Full->[$decade++];
+      _print $details->title, $o;
+      print "\n\n";
+      _print fold_text($details->text, 72), $o;
+      print "\n\n";
+      _print $details->fruit, $o;
+      print "\n\n";
+      if ($o->i or $o->p) {
+        print "\n\n<Return> to continue ... ";
+        my $next = <STDIN>
+      }
+    }
+    _print $Text, $o;
+    if ($o->i) {
+      print "\n\n<Return> to continue ... ";
+      my $next = <STDIN>
+    }
+  }
+}
+
+123
