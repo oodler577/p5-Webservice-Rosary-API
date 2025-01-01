@@ -87,6 +87,11 @@ uses to lead the user through the recitation of the specified Mystery.
 For more information on the Rosary itself, please see the very end of this
 documentation.
 
+The Rosary API is profiled at L<https://www.freepublicapis.com/the-rosary-api>. 
+
+Contributed as part of the B<FreePublicPerlAPIs> Project described at,
+L<https://github.com/oodler577/FreePublicPerlAPIs>.
+
 * - the module author is not affiliated with the site
 
 =head1 METHODS
