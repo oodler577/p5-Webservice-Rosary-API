@@ -6,7 +6,7 @@ use strict;
 use Util::H2O::More qw/baptise ddd HTTPTiny2h2o h2o/;
 use HTTP::Tiny qw//;
 
-our $VERSION = "0.1.2";
+our $VERSION = "0.1.3";
 
 use constant {
   BASEURL  => "https://the-rosary-api.vercel.app/v1",
@@ -72,7 +72,7 @@ Webservice::Rosary::API - Perl API client for the Rosary API at L<https://theros
 =head1 DESCRIPTION
 
 This is an API client for L<https://therosaryapi.cf>, which powers
-L<https://thedailyrosary.cf>*; the API requires no authentication, so the
+L<https://dailyrosary.cf>*; the API requires no authentication, so the
 client here simply wraps most of the calls for convient use in Perl programs.
 
 It is meant to faciliate a couple of things. One is the generation of a
@@ -110,7 +110,7 @@ construction consists of creating a C<ua> instance via L<HTTP::Tiny>.
 
 Given the string describing I<when>, returns the file name return by the
 API service.  It is not documented, but the base URL for the actual file is,
-L<https://thedailyrosary.cf>.
+L<https://dailyrosary.cf>.
 
   my $Rosary = Webservice::Rosary::API->new; my $mp3File =
   $Rosary->mp3Link("random"); ...
@@ -291,6 +291,6 @@ I have no idea how this is going to be used, and the way someone says the
 Rosary tends to be highly personal; so please let me know what kind of
 "--pray" controls would be helpful.
 
-+Deus Gratias+
++Deo Gratias+
 
 Brett Estrade L<< <oodler@cpan.org> >>
