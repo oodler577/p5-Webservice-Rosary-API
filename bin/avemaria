@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-package local::bin::AveMaria;
+package local::bin::avemaria;
 
 use v5.10;
 use strict;
@@ -27,7 +27,7 @@ my $subcommand = shift @ARGV;
 
 sub do_help() {
   print STDERR <<EOF;
-AveMaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf  
+avemaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf  
 
 There are 2 types of commands. One set of commands returns a URL for an MP3,
 which may then be piped into another program to download it. The other set
@@ -37,16 +37,16 @@ Mystery of the Rosary - from start to finish.
 
 Usage - to print MP3 URL to STDIN:
 
-  AveMaria today|yesterday|tomorrow|random
+  avemaria today|yesterday|tomorrow|random
 
 Example 1,
 
-  > AveMaria today
+  > avemaria today
   > https://dailyrosary.cf/audio-rosary-sorrowful-mysteries.mp3
    
 Example 2,
 
-  > curl -O \$(AveMaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
+  > curl -O \$(avemaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
     % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                    Dload  Upload   Total   Spent    Left  Speed
   100 31.5M  100 31.5M    0     0  2374k      0  0:00:13  0:00:13 --:--:-- 5043k
@@ -56,7 +56,7 @@ Example 2,
 
 Usage - to Pray the Rosary in the commandline:
 
-  AveMaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
+  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
 
   Valid DAY_OR_MYSTERY values:
 
@@ -74,17 +74,17 @@ Example 3,
 
   Used without additional options, it just prints the name of the Mystery
 
-  > AveMaria Monday
+  > avemaria Monday
   > Monday - The Joyful Mysteries
   >
 
-  > AveMaria Sorrowful
+  > avemaria Sorrowful
   > Friday - The Sorrowful Mysteries
   >
 
 Example 4,
 
-  > AveMaria Friday --pray -t --fully
+  > avemaria Friday --pray -t --fully
   > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
     while pausing only at the beginning of each Mystery after the description has
     been printed ...
@@ -93,7 +93,7 @@ Example 5,
 
   Run with absolutely no subcommands or flags, runs "--pray" for Today's Mystery,
 
-  > AveMaria
+  > avemaria
   > .. clears screen, the plays the specified Mystery for Today ...
 
 Feedback is Requested.

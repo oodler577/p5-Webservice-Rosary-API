@@ -81,7 +81,7 @@ being said, as an C<.mp3> file.  This means you may do something like what
 is done at L<https://dailyrosary.cf>.
 
 The second this it is meant to do is to return the text of a full recitation
-of the Rosary, which is what the provided C<AveMaria> commandline utility
+of the Rosary, which is what the provided C<avemaria> commandline utility
 uses to lead the user through the recitation of the specified Mystery.
 
 For more information on the Rosary itself, please see the very end of this
@@ -115,7 +115,7 @@ L<https://dailyrosary.cf>.
   my $Rosary = Webservice::Rosary::API->new; my $mp3File =
   $Rosary->mp3Link("random"); ...
 
-See the C<AveMaria> commandline client to see how the full URL is constructed
+See the C<avemaria> commandline client to see how the full URL is constructed
 and for an example of using this incombination with C<curl> to automatically
 download the C<.mp3> file.
 
@@ -157,9 +157,9 @@ Rosary API calls that are not currently supported:
 
 =back
 
-=head1 THE C<AveMaria> UTILITY
+=head1 THE C<avemaria> UTILITY
 
-The C<AveMaria> commandline Rosary client is installed with this module. The
+The C<avemaria> commandline Rosary client is installed with this module. The
 following is essentially verbatim from the client using the C<help> command.
 
 There are 2 types of commands. One set of commands returns a URL for an MP3,
@@ -170,16 +170,16 @@ Mystery of the Rosary - from start to finish.
 
 B<Usage - to print MP3 URL to STDIN:>
 
-  AveMaria today|yesterday|tomorrow|random
+  avemaria today|yesterday|tomorrow|random
 
 I<Example 1>,
 
-  > AveMaria today
+  > avemaria today
   > https://dailyrosary.cf/audio-rosary-sorrowful-mysteries.mp3
    
 I<Example 2>,
 
-  > curl -O \$(AveMaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
+  > curl -O \$(avemaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
     % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                    Dload  Upload   Total   Spent    Left  Speed
   100 31.5M  100 31.5M    0     0  2374k      0  0:00:13  0:00:13 --:--:-- 5043k
@@ -189,7 +189,7 @@ I<Example 2>,
 
 B<Usage - to Pray the Rosary in the commandline:>
 
-  AveMaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
+  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
 
   Valid DAY_OR_MYSTERY values:
 
@@ -207,17 +207,17 @@ I<Example 3>,
 
   Used without options, it just prints the name of the Mystery
 
-  > AveMaria Monday
+  > avemaria Monday
   > Monday - The Joyful Mysteries
   >
 
-  > AveMaria Sorrowful
+  > avemaria Sorrowful
   > Friday - The Sorrowful Mysteries
   >
 
 I<Example 4>,
 
-  > AveMaria Friday --pray -t --fully
+  > avemaria Friday --pray -t --fully
   > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
     while pausing only at the beginning of each Mystery after the description has
     been printed.
@@ -226,7 +226,7 @@ Example 5,
 
   Run with absolutely no subcommands or flags, runs "--pray" for Today's Mystery,
 
-  > AveMaria
+  > avemaria
   > .. clears screen, the plays the specified Mystery for Today ...
 
 =head1 ENVIRONMENT
