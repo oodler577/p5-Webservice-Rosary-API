@@ -128,7 +128,7 @@ L<https://github.com/oodler577/FreePublicPerlAPIs>.
 
 =over 4
 
-=item C<new(param1 = $val1, ...)>
+=item C<new(param1 => $val1, ...)>
 
 Constructor, accepts any number of parameters and makes them available
 during execution time; but doesn't do anything internally with them. Instance
