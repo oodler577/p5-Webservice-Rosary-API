@@ -122,7 +122,7 @@ The Rosary API is profiled at L<https://www.freepublicapis.com/the-rosary-api>.
 Contributed as part of the B<FreePublicPerlAPIs> Project described at,
 L<https://github.com/oodler577/FreePublicPerlAPIs>.
 
-* - the module author is not affiliated with the site
+* - the module author is not affiliated with these sites
 
 =head1 METHODS
 
