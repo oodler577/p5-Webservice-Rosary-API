@@ -366,14 +366,14 @@ Douay-Rheims translation:
   And the angel being come in, said unto her: Hail, full of grace, the Lord
   is with thee: blessed art thou among women.
 
-  L<https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=28-#x>
+L<https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=28-#x>
 
 =item * Luke 1:42
 
   And she cried out with a loud voice, and said: Blessed art thou among women,
   and blessed is the fruit of thy womb.
 
-  L<https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=42-#x>
+L<https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=42-#x>
 
 =back
 
@@ -415,7 +415,7 @@ The Our Father comes directly from Jesus' teaching in the Gospel of Matthew
   those who trespass against us. And lead us not into temptation, but deliver
   us from evil.
 
-  L<https://drbo.org/cgi-bin/d?b=drb&bk=47&ch=6&l=9-13#x>
+L<https://drbo.org/cgi-bin/d?b=drb&bk=47&ch=6&l=9-13#x>
 
 =back
 
