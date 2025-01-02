@@ -5,7 +5,7 @@ package local::bin::avemaria;
 use v5.10;
 use strict;
 use Webservice::Rosary::API qw//;
-use Util::H2O::More qw/ddd Getopt2h2o h2o o2d tr4h2o/;
+use Util::H2O::More qw/Getopt2h2o h2o o2d tr4h2o/;
 use Dispatch::Fu;
 use Time::HiRes qw/sleep/;
 use Text::Fold qw/fold_text/;
@@ -25,9 +25,167 @@ use constant {
 
 my $subcommand = shift @ARGV;
 
+#>>>
+dispatch { # Dispatch::Fu
+  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
+  my @mp3     = qw/today yesterday tomorrow random/;
+  my @day     = qw/sunday monday tuesday wednesday thursday friday saturday/;
+  my @mystery = qw/joyful glorious sorrowful luminous/;
+  return "mp3"     if (grep { m/^$subcommand$/i } @mp3);
+  return "day"     if (grep { m/^$subcommand$/i } @day);
+  return "mystery" if (grep { m/^$subcommand$/i } @mystery);
+  return "help"    if (grep { m/^$subcommand$/i } qw/help -h/);
+  return "about"   if (grep { m/^$subcommand$/i } qw/about -a/);
+  return "day";
+} [ $Rosary, lc $subcommand, \@ARGV ],
+  day     => \&PrayTheRosary,
+  about   => \&do_about,
+  help    => \&do_help,
+  mp3     => sub { my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; say $Rosary->mp3Link($subcommand, $ARGV); exit EXIT_SUCCESS },
+  mystery => \&mystery,
+;
+#<<<
+
+sub do_about() {
+  return print <<EOF;
+
+# BACKGROUND ON THE ROSARY
+
+The Rosary is a traditional Catholic prayer devotion that involves the
+repetition of prayers and meditation on key events from the lives of Jesus
+Christ and the Virgin Mary. The prayer is structured around a set of beads,
+each representing a specific prayer. These include the Our Father, Hail Mary,
+and Glory Be, which are recited while reflecting on the Mysteries-twenty
+key moments in the lives of Jesus and Mary, grouped into four categories:
+the Joyful, Sorrowful, Glorious, and Luminous Mysteries. The Rosary is both
+a contemplative prayer and a way to focus on the essential aspects of the
+Catholic faith, helping the faithful deepen their relationship with God.
+
+The history of the Rosary dates back to the Middle Ages, with its roots often
+linked to St. Dominic, who is traditionally credited with receiving the Rosary
+from the Virgin Mary in the 13th century. The Rosary evolved over several
+centuries. One of its early forms was connected to the Psalter of Our Lady,
+where the faithful would pray 150 Hail Marys, reflecting the 150 Psalms of
+the Old Testament. This practice was common among laypeople who could not
+read the Psalms themselves but still wanted to engage in a structured form
+of prayer. Over time, the Rosary's prayers and structure were refined, and
+by the 16th century, it became formally established by the Catholic Church
+as a central devotion, with the mysteries of the Rosary added to provide a
+scriptural basis for the prayers.
+
+## Biblical Foundations of the Hail Mary
+
+For Catholics, the Rosary is a deeply meaningful prayer practice that helps
+them draw closer to God by reflecting on the pivotal moments of salvation
+history. Its biblical foundations are grounded in scripture, with the Hail Mary
+drawn from the Angel Gabriel's greeting to Mary in Luke 1:28 and Elizabeth's
+words in Luke 1:42.
+
+The first part of the Hail Mary comes from Luke 1:28 and Luke 1:42 in the
+Douay-Rheims translation:
+
+> And the angel being come in, said unto her: Hail, full of grace, the Lord
+> is with thee: blessed art thou among women.
+
+https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=28-#x
+
+and:
+
+> And she cried out with a loud voice, and said: Blessed art thou among women,
+> and blessed is the fruit of thy womb.
+
+https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=43-#x
+
+These biblical words form the Angelic Salutation, which Catholics begin the
+Hail Mary with:
+
+> Hail Mary, full of grace, the Lord is with thee: blessed art thou
+> among women, and blessed is the fruit of thy womb, Jesus.
+
+## The Second Part of the Hail Mary
+
+The second part of the Hail Mary, which was added later to the prayer,
+invokes Mary's intercession. This part is drawn from the Catholic tradition
+and reflects the Church's desire for Mary's prayers to be a source of strength
+and protection for all the faithful. The second part reads:
+
+> Holy Mary, Mother of God, pray for us sinners, now and at the hour
+> of our death. Amen.
+
+This petition is based on Mary's role as Mother of God (as declared in Luke
+1:43, when Elizabeth calls her the "Mother of my Lord") and her ongoing role
+as intercessor for the Church. It is the second part of the Hail Mary that
+Catholics use to seek her intercession, especially in times of trial.
+
+https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=43-#x
+
+## The Our Father
+
+The Our Father comes directly from Jesus' teaching in the Gospel of Matthew
+6:9-13:
+
+> Thus therefore shall you pray: Our Father who art in heaven, hallowed be Thy
+> name. Thy kingdom come. Thy will be done, on earth as it is in heaven. Give
+> us this day our daily bread. And forgive us our trespasses, as we forgive
+> those who trespass against us. And lead us not into temptation, but deliver
+> us from evil.  Matthew 6:9-13.
+
+https://drbo.org/cgi-bin/d?b=drb&bk=47&ch=6&l=9-13#x
+
+By meditating on the Mysteries of the Rosary, Catholics invite the presence
+of Jesus into their lives, contemplating His birth, death, resurrection, and
+the role of Mary in His story. These meditations, grouped into the Joyful,
+Sorrowful, Glorious, and Luminous Mysteries, help to guide the faithful
+through the essential moments of Christ's life and His salvation work.
+
+## The Rosary as a Communal Devotion
+
+The Rosary is seen not just as a personal prayer, but as a communal devotion
+that fosters a deeper understanding of God's love and a powerful means of
+seeking His intercession. It is often prayed in groups, in parishes, or even
+in families, helping to build unity within the faith community. Through its
+rich combination of prayer and meditation, the Rosary has become a beloved
+devotion for Catholics around the world, encouraging spiritual growth and
+reflection on the central mysteries of the Christian faith.
+
+The importance of daily prayer of the Rosary was emphasized by Our Lady
+during the Apparitions at Fatima in 1917, where she specifically urged the
+children to "pray the Rosary every day" for peace in the world and for the
+salvation of souls, making it a call for all the faithful to embrace this
+prayer as a tool for spiritual strength and intercession. For more information
+on Fatima, look up, "the Miracle of the Sun."
+
++Deo Gratias+
+
+EOF
+}
+
 sub do_help() {
-  print STDERR <<EOF;
+  return print <<EOF;
 avemaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf  
+
+Note: Commandline options may change to accomodate feedback. This note will
+be removed once the cli UX settles.
+
+Quick Start
+
+  > avemaria                         # no arguments
+  > ... runs through the recitation of the Rosary for today, equivalent,
+    to,
+
+  > avemaria \$(date "+%A") --pray -t # `date` commands prints out today's day of week
+
+Getting Help
+
+  > avemaria help
+  > ... prints help section
+
+Learning More
+
+  > avemaria about
+  > ... prints an "about" section
+
+Functional Commands
 
 There are 2 types of commands. One set of commands returns a URL for an MP3,
 which may then be piped into another program to download it. The other set
@@ -37,7 +195,7 @@ Mystery of the Rosary - from start to finish.
 
 Usage - to print MP3 URL to STDIN:
 
-  avemaria today|yesterday|tomorrow|random
+  avemaria today | yesterday | tomorrow | random
 
 Example 1,
 
@@ -106,24 +264,6 @@ would be helpful.
   
 EOF
 }
-
-#>>>
-dispatch { # Dispatch::Fu
-  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
-  my @mp3     = qw/today yesterday tomorrow random/;
-  my @day     = qw/sunday monday tuesday wednesday thursday friday saturday/;
-  my @mystery = qw/joyful glorious sorrowful luminous/;
-  return "mp3"  if (grep { m/^$subcommand$/i } @mp3);
-  return "day" if (grep { m/^$subcommand$/i } @day);
-  return "mystery" if (grep { m/^$subcommand$/i } @mystery);
-  return "day";
-} [ $Rosary, lc $subcommand, \@ARGV ],
-  mp3     => sub { my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; say $Rosary->mp3Link($subcommand, $ARGV); exit EXIT_SUCCESS },
-  day     => \&PrayTheRosary,
-  mystery => \&mystery,
-  help    => \&do_help,
-;
-#<<<
 
 sub mystery {
   my ($Rosary, $subcommand, $ARGV ) = xshift_and_deref @_; 

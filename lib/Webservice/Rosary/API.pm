@@ -58,7 +58,8 @@ __END__
 
 =head1 NAME
 
-Webservice::Rosary::API - Perl API client for the Rosary API at L<https://therosaryapi.cf>.
+Webservice::Rosary::API - Perl API client for the Rosary API at
+L<https://therosaryapi.cf> and L<https://dailyrosary.cf>.
 
 =head1 SYNOPSIS
 
@@ -119,7 +120,7 @@ See the C<avemaria> commandline client to see how the full URL is constructed
 and for an example of using this incombination with C<curl> to automatically
 download the C<.mp3> file.
 
-=item C<day("Sunday"|"Monday"|"Tuesday"|...|"Thursday"|"Friday"|"Saturday")>
+=item C<day("Sunday" | "Monday" | "Tuesday" | ... | "Thursday" | "Friday" | "Saturday")>
 
 Given the day, returns the Mystery of the Rosary traditionally associated
 with the day of the week. This module I<does> include the Luminous Mysteries
@@ -130,7 +131,9 @@ can be achieved using a look up table that maps each Mystery to a particular
 day, e.g.:
 
   my $Convert = {
-    luminous  => "thursday", sorrowful => "friday", joyful    => "saturday",
+    luminous  => "thursday",
+    sorrowful => "friday",
+    joyful    => "saturday",
     glorious  => "sunday",
   };
 
@@ -162,22 +165,45 @@ Rosary API calls that are not currently supported:
 The C<avemaria> commandline Rosary client is installed with this module. The
 following is essentially verbatim from the client using the C<help> command.
 
-There are 2 types of commands. One set of commands returns a URL for an MP3,
-which may then be piped into another program to download it. The other set
-of commands displays the specified Mystery (by day of the week or actual
-name of the Mystery), so that the user may be guided through the specified
-Mystery of the Rosary - from start to finish.
+Note: Commandline options may change to accomodate feedback. This note will
+be removed once the cli UX settles.
+
+B<Quick Start>
+
+  > avemaria                         # no arguments
+  > ... runs through the recitation of the Rosary for today, equivalent,
+    to,
+
+  > avemaria $(date "+%A") --pray -t # `date` commands prints out today's day of week
+
+B<Getting Help>
+
+  > avemaria help
+  > ... prints help section
+
+B<Learning More>
+
+  > avemaria about
+  > ... prints an "about" section
+
+B<Functional Commands>
+
+There are 2 types of functional commands. One set of commands returns a URL
+for an MP3, which may then be piped into another program to download it. The
+other set of commands displays the specified Mystery (by day of the week
+or actual name of the Mystery), so that the user may be guided through the
+specified Mystery of the Rosary - from start to finish.
 
 B<Usage - to print MP3 URL to STDIN:>
 
-  avemaria today|yesterday|tomorrow|random
+  avemaria [today | yesterday | tomorrow | random]
 
-I<Example 1>,
+I<Example 1>
 
   > avemaria today
   > https://dailyrosary.cf/audio-rosary-sorrowful-mysteries.mp3
    
-I<Example 2>,
+I<Example 2>
 
   > curl -O \$(avemaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
     % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
@@ -203,7 +229,7 @@ B<Usage - to Pray the Rosary in the commandline:>
   --fully  : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
   --sleep  : affects the delay taken before each new character is printed (when used with --pray). Default is 0.4 seconds.
 
-I<Example 3>,
+I<Example 3>
 
   Used without options, it just prints the name of the Mystery
 
@@ -215,19 +241,19 @@ I<Example 3>,
   > Friday - The Sorrowful Mysteries
   >
 
-I<Example 4>,
+I<Example 4>
 
   > avemaria Friday --pray -t --fully
   > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
     while pausing only at the beginning of each Mystery after the description has
     been printed.
 
-Example 5,
+I<Example 5>
 
-  Run with absolutely no subcommands or flags, runs "--pray" for Today's Mystery,
+  Run with absolutely no subcommands or flags, runs "--pray" for today's Mystery,
 
   > avemaria
-  > .. clears screen, the plays the specified Mystery for Today ...
+  > .. clears screen, the plays the specified Mystery for today ...
 
 =head1 ENVIRONMENT
 
@@ -252,45 +278,124 @@ the Joyful, Sorrowful, Glorious, and Luminous Mysteries. The Rosary is both
 a contemplative prayer and a way to focus on the essential aspects of the
 Catholic faith, helping the faithful deepen their relationship with God.
 
-The history of the Rosary dates back to the Middle Ages, with its roots
-often linked to St. Dominic, who is traditionally credited with receiving
-the Rosary from the Virgin Mary in the 13th century. The Rosary, however,
-evolved over several centuries. One of its early forms was connected to the
-Psalter of Our Lady, where the faithful would pray 150 Hail Marys, reflecting
-the 150 Psalms of the Old Testament. This practice was common among laypeople
-who could not read the Psalms themselves but still wanted to engage in a
-structured form of prayer. Over time, the Rosary's prayers and structure
-were refined, and by the 16th century, it became formally established by
-the Catholic Church as a central devotion, with the mysteries of the Rosary
-added to provide a scriptural basis for the prayers.
+The history of the Rosary dates back to the Middle Ages, with its roots often
+linked to St. Dominic, who is traditionally credited with receiving the Rosary
+from the Virgin Mary in the 13th century. The Rosary evolved over several
+centuries. One of its early forms was connected to the Psalter of Our Lady,
+where the faithful would pray 150 Hail Marys, reflecting the 150 Psalms of
+the Old Testament. This practice was common among laypeople who could not
+read the Psalms themselves but still wanted to engage in a structured form
+of prayer. Over time, the Rosary's prayers and structure were refined, and
+by the 16th century, it became formally established by the Catholic Church
+as a central devotion, with the mysteries of the Rosary added to provide a
+scriptural basis for the prayers.
+
+=head2 Biblical Foundations of the Hail Mary
 
 For Catholics, the Rosary is a deeply meaningful prayer practice that helps
 them draw closer to God by reflecting on the pivotal moments of salvation
 history. Its biblical foundations are grounded in scripture, with the Hail Mary
 drawn from the Angel Gabriel's greeting to Mary in Luke 1:28 and Elizabeth's
-words in Luke 1:42. The Our Father comes directly from Jesus' teaching in
-the Gospel of Matthew (6:9-13). By meditating on the Mysteries, Catholics
-invite the presence of Jesus into their lives, contemplating His birth,
-death, resurrection, and the role of Mary in His story. The Rosary is seen not
-just as a personal prayer, but as a communal devotion that fosters a deeper
-understanding of God's love and a powerful means of seeking His intercession.
+words in Luke 1:42.
+
+The first part of the Hail Mary comes from Luke 1:28 and Luke 1:42 in the
+Douay-Rheims translation:
+
+=over 4
+
+=item * Luke 1:28
+
+  And the angel being come in, said unto her: Hail, full of grace, the Lord
+  is with thee: blessed art thou among women.
+
+  L<https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=28-#x>
+
+=item * Luke 1:42
+
+  And she cried out with a loud voice, and said: Blessed art thou among women,
+  and blessed is the fruit of thy womb.
+
+  L<https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=42-#x>
+
+=back
+
+These biblical words form the Angelic Salutation, which Catholics begin the
+Rosary with:
+
+  Hail Mary, full of grace, the Lord is with thee: blessed art thou
+  among women, and blessed is the fruit of thy womb, Jesus.
+
+=head2 The Second Part of the Hail Mary
+
+The second part of the Hail Mary, which was added later to the prayer,
+invokes Mary's intercession. This part is drawn from the Catholic tradition
+and reflects the Church's desire for Mary's prayers to be a source of strength
+and protection for all the faithful. The second part reads:
+
+  Holy Mary, Mother of God, pray for us sinners, now and at the hour
+  of our death. Amen.
+
+This petition is based on Mary's role as Mother of God (as declared in Luke
+1:43, when Elizabeth calls her the "Mother of my Lord") and her ongoing role
+as intercessor for the Church. It is the second part of the Hail Mary that
+Catholics use to seek her intercession, especially in times of trial.
+
+L<https://drbo.org/cgi-bin/d?b=drb&bk=49&ch=1&l=43-#x>
+
+=head2 The Our Father
+
+The Our Father comes directly from Jesus' teaching in the Gospel of Matthew
+6:9-13:
+
+=over 4
+
+=item * Matthew 6:9-13
+
+  Thus therefore shall you pray: Our Father who art in heaven, hallowed be Thy
+  name. Thy kingdom come. Thy will be done, on earth as it is in heaven. Give
+  us this day our daily bread. And forgive us our trespasses, as we forgive
+  those who trespass against us. And lead us not into temptation, but deliver
+  us from evil.
+
+  L<https://drbo.org/cgi-bin/d?b=drb&bk=47&ch=6&l=9-13#x>
+
+=back
+
+By meditating on the Mysteries of the Rosary, Catholics invite the presence
+of Jesus into their lives, contemplating His birth, death, resurrection, and
+the role of Mary in His story. These meditations, grouped into the Joyful,
+Sorrowful, Glorious, and Luminous Mysteries, help to guide the faithful
+through the essential moments of Christ's life and His salvation work.
+
+=head2 The Rosary as a Communal Devotion
+
+The Rosary is seen not just as a personal prayer, but as a communal devotion
+that fosters a deeper understanding of God's love and a powerful means of
+seeking His intercession. It is often prayed in groups, in parishes, or even
+in families, helping to build unity within the faith community. Through its
+rich combination of prayer and meditation, the Rosary has become a beloved
+devotion for Catholics around the world, encouraging spiritual growth and
+reflection on the central mysteries of the Christian faith.
 
 The importance of daily prayer of the Rosary was emphasized by Our Lady
 during the Apparitions at Fatima in 1917, where she specifically urged the
 children to "pray the Rosary every day" for peace in the world and for the
 salvation of souls, making it a call for all the faithful to embrace this
-prayer as a tool for spiritual strength and intercession.
+prayer as a tool for spiritual strength and intercession.  For more information
+on Fatima, look up, "the Miracle of the Sun."
 
 =head1 LICENSE AND COPYRIGHT
 
 This module and utility is released under the same terms as Perl/perl.
 
-Feedback is Requested.
+=head1 REQUEST FOR COMMENTS
 
 I have no idea how this is going to be used, and the way someone says the
 Rosary tends to be highly personal; so please let me know what kind of
 "--pray" controls would be helpful.
 
-+Deo Gratias+
+=head1 AUTHOR
 
 Brett Estrade L<< <oodler@cpan.org> >>
+
++Deo Gratias+
