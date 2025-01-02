@@ -5,7 +5,7 @@ package local::bin::avemaria;
 use v5.10;
 use strict;
 use Webservice::Rosary::API qw//;
-use Util::H2O::More qw/Getopt2h2o h2o o2d tr4h2o/;
+use Util::H2O::More qw/ddd Getopt2h2o h2o o2d tr4h2o/;
 use Dispatch::Fu;
 use Time::HiRes qw/sleep/;
 use Text::Fold qw/fold_text/;
@@ -31,24 +31,30 @@ dispatch { # Dispatch::Fu
   my @mp3     = qw/today yesterday tomorrow random/;
   my @day     = qw/sunday monday tuesday wednesday thursday friday saturday/;
   my @mystery = qw/joyful glorious sorrowful luminous/;
+  return "day"     if (not $subcommand);
   return "mp3"     if (grep { m/^$subcommand$/i } @mp3);
   return "day"     if (grep { m/^$subcommand$/i } @day);
   return "mystery" if (grep { m/^$subcommand$/i } @mystery);
-  return "help"    if (grep { m/^$subcommand$/i } qw/help -h/);
+  return "help"    if (grep { m/^$subcommand/i } qw/-h help mystery/) or ($subcommand =~ m/^-/);
   return "about"   if (grep { m/^$subcommand$/i } qw/about -a/);
-  return "day";
+  return "help";
 } [ $Rosary, lc $subcommand, \@ARGV ],
   day     => \&PrayTheRosary,
+  mp3     => \&do_mp3,
   about   => \&do_about,
   help    => \&do_help,
-  mp3     => sub { my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; say $Rosary->mp3Link($subcommand, $ARGV); exit EXIT_SUCCESS },
   mystery => \&mystery,
 ;
 #<<<
 
+sub do_mp3 {
+  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
+  say $Rosary->mp3Link($subcommand, $ARGV);
+  exit EXIT_SUCCESS;
+}
+
 sub do_about() {
   return print <<EOF;
-
 # BACKGROUND ON THE ROSARY
 
 The Rosary is a traditional Catholic prayer devotion that involves the
@@ -158,6 +164,7 @@ on Fatima, look up, "the Miracle of the Sun."
 +Deo Gratias+
 
 EOF
+  exit EXIT_SUCCESS;
 }
 
 sub do_help() {
@@ -212,6 +219,16 @@ Example 2,
   Downloaded file: audio-rosary-sorrowful-mysteries.mp3
   >
 
+Note, MP3 Sources are as follows:
+
+  + https://www.discerninghearts.com/Devotionals/Rosary-Joyful-Mysteries.mp3
+ 
+  + https://www.discerninghearts.com/Devotionals/Rosary-Luminous-Mysteries.mp3
+ 
+  + https://www.discerninghearts.com/Devotionals/Rosary-Sorrowful-Mysteries.mp3
+
+  + https://www.discerninghearts.com/Devotionals/Rosary-Glorious-Mysteries.mp3
+
 Usage - to Pray the Rosary in the commandline:
 
   avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
@@ -263,6 +280,8 @@ would be helpful.
 +Deo Gratias+
   
 EOF
+
+  exit EXIT_SUCCESS;
 }
 
 sub mystery {
@@ -349,7 +368,7 @@ EOF
       print "\n\n";
       _print $details->fruit, $o;
       print "\n\n";
-      if ($o->i or $o->p) {
+      if ($o->i or $o->t) {
         print "\n\n<RETURN> to continue ... ";
         my $next = <STDIN>
       }
@@ -360,6 +379,7 @@ EOF
       my $next = <STDIN>
     }
   }
+  exit EXIT_SUCCESS;
 }
 
 123

@@ -3,7 +3,7 @@ package Webservice::Rosary::API;
 use v5.10;
 use strict;
 
-use Util::H2O::More qw/baptise ddd HTTPTiny2h2o h2o/;
+use Util::H2O::More qw/baptise ddd HTTPTiny2h2o h2o o2d/;
 use HTTP::Tiny qw//;
 
 our $VERSION = "0.1.3";
@@ -34,7 +34,36 @@ sub mp3Link {
   # invalid
   return "" if (not grep { m/^$when$/i } @mp3);
   # valid
-  return sprintf "%s/%s", DAILYURL, $self->_make_call($when)->get(0)->mp3Link;
+  my $resp = $self->_make_call($when);
+  # NOTE: this endpoint has proven somewhat unstable, which really means that
+  # another place Util::H2O::More::HTTPTiny2h2o would behefit from an "autoundef"
+  # option (these endpoints are also kind of a mess, returning 3 different structures
+  # in different cases
+  my $_resp = o2d $resp;
+  if (ref $_resp eq "HASH" and defined $resp->{mp3Link}) {
+    return sprintf "%s/%s", DAILYURL, $resp->mp3Link;
+  }
+  elsif ($resp->get(0)) {
+    return sprintf "%s/%s", DAILYURL, $resp->get(0)->mp3Link;
+  }
+  else {
+    warn "\nNo content in response from https://therosaryapi.cf ... try the following links:\n";
+    warn <<EOF;
+
+    https://www.discerninghearts.com/catholic-podcasts/holy-rosary/ - 
+
+      + https://www.discerninghearts.com/Devotionals/Rosary-Joyful-Mysteries.mp3
+
+      + https://www.discerninghearts.com/Devotionals/Rosary-Luminous-Mysteries.mp3
+
+      + https://www.discerninghearts.com/Devotionals/Rosary-Sorrowful-Mysteries.mp3
+
+      + https://www.discerninghearts.com/Devotionals/Rosary-Glorious-Mysteries.mp3
+
+... please try back again later
+EOF
+    die "\n";
+  }
 }
 
 sub day {
@@ -107,7 +136,7 @@ construction consists of creating a C<ua> instance via L<HTTP::Tiny>.
 
   my $Rosary = Webservice::Rosary::API->new; ...
 
-=item C<mp3Link("today"|"tomorrow"|"yesterday"|"random")>
+=item C<mp3Link("today" | "tomorrow" | "yesterday" | "random")>
 
 Given the string describing I<when>, returns the file name return by the
 API service.  It is not documented, but the base URL for the actual file is,
@@ -119,6 +148,31 @@ L<https://dailyrosary.cf>.
 See the C<avemaria> commandline client to see how the full URL is constructed
 and for an example of using this incombination with C<curl> to automatically
 download the C<.mp3> file.
+
+B<Error Handling>
+
+If the server responds, but has not content (which has been experienced
+during the creation of this module), this method will C<die> and print
+an appropriate message to C<STDERR> unless caught. C<avemaria> doesn't
+try to catch this case. 
+
+B<MP3 Source Note>
+
+All recordings are actually freely available at the site,
+
+L<https://www.discerninghearts.com/catholic-podcasts/holy-rosary/>
+
+=over 4
+
+=item L<https://www.discerninghearts.com/Devotionals/Rosary-Joyful-Mysteries.mp3>
+
+=item L<https://www.discerninghearts.com/Devotionals/Rosary-Luminous-Mysteries.mp3>
+
+=item L<https://www.discerninghearts.com/Devotionals/Rosary-Sorrowful-Mysteries.mp3>
+
+=item L<https://www.discerninghearts.com/Devotionals/Rosary-Glorious-Mysteries.mp3>
+
+=back
 
 =item C<day("Sunday" | "Monday" | "Tuesday" | ... | "Thursday" | "Friday" | "Saturday")>
 
@@ -141,6 +195,10 @@ Then the day of the week obtained via `$Convert->{$mystery}` can be used
 used to derive the proper day to be used with this call.
 
 * - although, any Mystery may be said on any day
+
+B<Error Handling>
+
+None.
 
 =back
 
