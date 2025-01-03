@@ -6,7 +6,7 @@ use strict;
 use Util::H2O::More qw/baptise ddd HTTPTiny2h2o h2o o2d/;
 use HTTP::Tiny qw//;
 
-our $VERSION = "0.1.3";
+our $VERSION = "0.1.4";
 
 use constant {
   BASEURL  => "https://the-rosary-api.vercel.app/v1",
@@ -27,7 +27,6 @@ sub _make_call {
   return $resp->content;
 }
 
-#TODO - add "list", date/MMDDYY, and novena/MMDDYY
 sub mp3Link {
   my ($self, $when) = @_;
   my @mp3 = qw/today yesterday tomorrow random/;
@@ -35,16 +34,15 @@ sub mp3Link {
   return "" if (not grep { m/^$when$/i } @mp3);
   # valid
   my $resp = $self->_make_call($when);
-  # NOTE: this endpoint has proven somewhat unstable, which really means that
-  # another place Util::H2O::More::HTTPTiny2h2o would behefit from an "autoundef"
-  # option (these endpoints are also kind of a mess, returning 3 different structures
-  # in different cases
-  my $_resp = o2d $resp;
-  if (ref $_resp eq "HASH" and defined $resp->{mp3Link}) {
-    return sprintf "%s/%s", DAILYURL, $resp->mp3Link;
+  my $ref = $resp->shift;
+  # the problem here is that this API call in the past has returned
+  # a JSON hash rather than an array in some cases; in other cases
+  # it has returned an empty JSON array
+  if (my $ref = $resp->shift) {
+    return sprintf "%s/%s", DAILYURL, $ref->mp3Link;
   }
-  elsif ($resp->get(0)) {
-    return sprintf "%s/%s", DAILYURL, $resp->get(0)->mp3Link;
+  elsif (ref o2d $resp ne "ARRAY" and my $file = $resp->mp3Link) {
+    return sprintf "%s/%s", DAILYURL, $file;
   }
   else {
     warn "\nNo content in response from https://therosaryapi.cf ... try the following links:\n";
