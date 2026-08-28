@@ -2,11 +2,14 @@ package Webservice::Rosary::API;
 
 use v5.10;
 use strict;
+use warnings;
 
-use Util::H2O::More qw/baptise ddd HTTPTiny2h2o h2o o2d/;
+use Util::H2O::More qw/baptise d2o/;
 use HTTP::Tiny qw//;
+use JSON qw/decode_json/;
+use Scalar::Util qw/reftype/;
 
-our $VERSION = "0.1.5";
+our $VERSION = "0.1.6";
 
 use constant {
   BASEURL  => "https://the-rosary-api.vercel.app/v1",
@@ -15,40 +18,166 @@ use constant {
 
 sub new {
   my $pkg = shift;
-  my $params = { @_, ua => HTTP::Tiny->new };
-  my $self = baptise $params, $pkg, qw//;
+  my %params = @_;
+
+  $params{timeout}        = 10  if not exists $params{timeout};
+  $params{cache_ttl}      = 300 if not exists $params{cache_ttl};
+  $params{stale_if_error} = 1   if not exists $params{stale_if_error};
+  $params{cache}          = {}  if not exists $params{cache};
+  $params{ua}             = _new_default_ua($params{timeout})
+    if not exists $params{ua};
+
+  return baptise \%params, $pkg,
+    qw/ua timeout cache cache_ttl stale_if_error/;
+}
+
+
+sub _new_default_ua {
+  my $timeout = shift;
+
+  # HTTP::Tiny honors proxy environment variables. Some environments leave
+  # those variables defined but empty; older HTTP::Tiny releases treat that
+  # as an invalid proxy URL. Ignore only empty proxy values locally.
+  local %ENV = %ENV;
+  foreach my $name (qw/http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY/) {
+    delete $ENV{$name} if exists $ENV{$name} and not length $ENV{$name};
+  }
+
+  return HTTP::Tiny->new(timeout => $timeout);
+}
+
+sub clear_cache {
+  my $self = shift;
+  %{ $self->cache } = ();
   return $self;
+}
+
+sub _decode_content {
+  my ($self, $content, $URL) = @_;
+
+  die "Rosary API returned an empty response from $URL\n"
+    if not defined $content or $content !~ /\S/;
+
+  my $decoded = eval { decode_json($content) };
+  if (not defined $decoded or $@) {
+    my $error = $@ || q{unknown JSON decoding error};
+    chomp $error;
+    die "Rosary API returned invalid JSON from $URL: $error\n";
+  }
+
+  return d2o -autoundef, $decoded;
+}
+
+sub _cached_content {
+  my ($self, $URL, $fresh_only) = @_;
+  return if not $self->cache_ttl or $self->cache_ttl <= 0;
+
+  my $entry = $self->cache->{$URL} or return;
+  return if $fresh_only and (time - $entry->{stored_at}) > $self->cache_ttl;
+  return $entry->{content};
+}
+
+sub _cache_content {
+  my ($self, $URL, $content) = @_;
+  return if not $self->cache_ttl or $self->cache_ttl <= 0;
+
+  $self->cache->{$URL} = {
+    content   => $content,
+    stored_at => time,
+  };
+  return;
+}
+
+sub _fallback_or_die {
+  my ($self, $URL, $error) = @_;
+  chomp $error;
+
+  if ($self->stale_if_error) {
+    my $cached = $self->_cached_content($URL, 0);
+    if (defined $cached) {
+      warn "$error; using cached Rosary API response\n";
+      return $self->_decode_content($cached, $URL);
+    }
+  }
+
+  die "$error\n";
 }
 
 sub _make_call {
   my ($self, $when) = @_;
+  $when = lc $when;
   my $URL = sprintf "%s/%s", BASEURL, $when;
-  my $resp = HTTPTiny2h2o $self->ua->get($URL);
-  return $resp->content;
+
+  # Repeated requests are cheap locally, but preserve the semantics of
+  # /random by never satisfying it from a fresh cache entry.
+  if (lc($when) ne q{random}) {
+    my $cached = $self->_cached_content($URL, 1);
+    return $self->_decode_content($cached, $URL) if defined $cached;
+  }
+
+  my $response = eval { $self->ua->get($URL) };
+  if ($@) {
+    my $error = $@;
+    chomp $error;
+    return $self->_fallback_or_die(
+      $URL,
+      "Rosary API request to $URL failed: $error",
+    );
+  }
+
+  if (ref($response) ne q{HASH}) {
+    return $self->_fallback_or_die(
+      $URL,
+      "Rosary API request to $URL returned an invalid HTTP response",
+    );
+  }
+
+  if (not $response->{success}) {
+    my $status = defined $response->{status} ? $response->{status} : q{unknown};
+    my $reason = defined $response->{reason} ? $response->{reason} : q{HTTP error};
+    return $self->_fallback_or_die(
+      $URL,
+      "Rosary API request to $URL failed: HTTP $status $reason",
+    );
+  }
+
+  my $content = $response->{content};
+  my $decoded = eval { $self->_decode_content($content, $URL) };
+  if ($@) {
+    my $error = $@;
+    chomp $error;
+    return $self->_fallback_or_die($URL, $error);
+  }
+
+  $self->_cache_content($URL, $content);
+  return $decoded;
 }
 
 sub mp3Link {
   my ($self, $when) = @_;
   my @mp3 = qw/today yesterday tomorrow random/;
-  # invalid
-  return "" if (not grep { m/^$when$/i } @mp3);
-  # valid
-  my $resp = $self->_make_call($when);
-  my $ref = $resp->shift;
-  # the problem here is that this API call in the past has returned
-  # a JSON hash rather than an array in some cases; in other cases
-  # it has returned an empty JSON array
-  if (my $ref = $resp->shift) {
-    return sprintf "%s/%s", DAILYURL, $ref->mp3Link;
-  }
-  elsif (ref o2d $resp ne "ARRAY" and my $file = $resp->mp3Link) {
-    return sprintf "%s/%s", DAILYURL, $file;
-  }
-  else {
-    warn "\nNo content in response from https://therosaryapi.cf ... try the following links:\n";
-    warn <<EOF;
+  return "" if not defined $when or not grep { m/^\Q$when\E$/i } @mp3;
 
-    https://www.discerninghearts.com/catholic-podcasts/holy-rosary/ - 
+  my $resp = $self->_make_call($when);
+  my $type = reftype($resp) || q{};
+  my $item;
+
+  if ($type eq q{ARRAY}) {
+    $item = $resp->[0] if @$resp;
+  }
+  elsif ($type eq q{HASH}) {
+    $item = $resp;
+  }
+
+  if ($item and (reftype($item) || q{}) eq q{HASH}) {
+    my $file = $item->{mp3Link};
+    return sprintf "%s/%s", DAILYURL, $file if defined $file and length $file;
+  }
+
+  warn "\nNo MP3 content in response from the Rosary API ... try the following links:\n";
+  warn <<'EOF_LINKS';
+
+    https://www.discerninghearts.com/catholic-podcasts/holy-rosary/
 
       + https://www.discerninghearts.com/Devotionals/Rosary-Joyful-Mysteries.mp3
 
@@ -59,63 +188,67 @@ sub mp3Link {
       + https://www.discerninghearts.com/Devotionals/Rosary-Glorious-Mysteries.mp3
 
 ... please try back again later
-EOF
-    die "\n";
-  }
+EOF_LINKS
+  die "Rosary API returned no MP3 link\n";
 }
 
 sub day {
   my ($self, $when) = @_;
-  my @days = qw/sunday monday tuesday wednesday thursday friday/;
-  return "" if (not grep { m/^$when$/i } @days);
-  return $self->_make_call($when)->get(0);
+  my @days = qw/sunday monday tuesday wednesday thursday friday saturday/;
+  return "" if not defined $when or not grep { m/^\Q$when\E$/i } @days;
+
+  my $resp = $self->_make_call($when);
+  my $type = reftype($resp) || q{};
+  return $resp->[0] if $type eq q{ARRAY} and @$resp;
+  return $resp      if $type eq q{HASH};
+  return "";
 }
 
 # Get detailed recitations
 sub details {
   my ($self, $when) = @_;
   my @mysteries = qw/joyful glorious sorrowful luminous/;
-  return "" if (not grep { m/^$when$/i } @mysteries);
+  return "" if not defined $when or not grep { m/^\Q$when\E$/i } @mysteries;
   return $self->_make_call($when);
 }
 
-123
+1;
 
 __END__
 
 =head1 NAME
 
 Webservice::Rosary::API - Perl API client for the Rosary API at
-L<https://therosaryapi.cf> and L<https://dailyrosary.cf>.
+L<https://the-rosary-api.vercel.app> and L<https://dailyrosary.cf>.
 
 =head1 SYNOPSIS
 
   use v5.10;
   use warnings;
   my $Rosary = Webservice::Rosary::API->new;
-   
-  my $mp3File = $Rosary->mp3Link("random");
-  printf "https://dailyrosary.cf/%s", $mp3File;
+
+  my $mp3URL = $Rosary->mp3Link("random");
+  say $mp3URL;
 
 =head1 DESCRIPTION
 
-This is an API client for L<https://therosaryapi.cf>, which powers
+This is an API client for L<https://the-rosary-api.vercel.app>, which powers
 L<https://dailyrosary.cf>*; the API requires no authentication, so the
-client here simply wraps most of the calls for convient use in Perl programs.
+client here simply wraps most of the calls for convenient use in Perl programs.
 
-It is meant to faciliate a couple of things. One is the generation of a
+It is meant to facilitate a couple of things. One is the generation of a
 full URL that may be used to download an audio file of the specified Mystery
-being said, as an C<.mp3> file.  This means you may do something like what
+being said, as an C<.mp3> file. This means you may do something like what
 is done at L<https://dailyrosary.cf>.
 
-The second this it is meant to do is to return the text of a full recitation
+The second thing it is meant to do is to return the text of a full recitation
 of the Rosary, which is what the provided C<avemaria> commandline utility
 uses to lead the user through the recitation of the specified Mystery.
 
 For more information on the Rosary itself, please see the very end of this
 documentation.
 
-The Rosary API is profiled at L<https://www.freepublicapis.com/the-rosary-api>. 
+The Rosary API is profiled at L<https://www.freepublicapis.com/the-rosary-api>.
 
 Contributed as part of the B<FreePublicPerlAPIs> Project described at,
 L<https://github.com/oodler577/FreePublicPerlAPIs>.
@@ -128,31 +261,63 @@ L<https://github.com/oodler577/FreePublicPerlAPIs>.
 
 =item C<new(param1 => $val1, ...)>
 
-Constructor, accepts any number of parameters and makes them available
-during execution time; but doesn't do anything internally with them. Instance
-construction consists of creating a C<ua> instance via L<HTTP::Tiny>.
+Constructor. By default it creates an L<HTTP::Tiny> user agent with a
+10-second timeout and enables a small per-instance in-memory cache with a
+300-second TTL. The following optional parameters are recognized:
 
-  my $Rosary = Webservice::Rosary::API->new; ...
+=over 4
+
+=item C<ua>
+
+An HTTP-compatible object providing C<get>. This is useful for testing and for
+applications that need to supply their own configured user agent.
+
+=item C<timeout>
+
+Timeout used when constructing the default L<HTTP::Tiny> instance. Default: 10.
+
+=item C<cache_ttl>
+
+Number of seconds successful responses may be served from memory. Set to C<0>
+to disable caching. Default: 300. The C<random> endpoint is never satisfied from
+a fresh cache entry, so repeated random requests remain random.
+
+=item C<stale_if_error>
+
+If true, a previously cached response may be used when the network request
+fails, even after its normal TTL has expired. Default: true.
+
+=item C<cache>
+
+Optional hash reference used as the per-instance in-memory cache. Most callers
+can leave this unspecified; supplying one is primarily useful for tests or for
+applications that want to inspect or preseed the cache explicitly. Cache
+contents are not written to disk and are not shared between objects unless the
+same hash reference is supplied to more than one object.
+
+=back
+
+  my $Rosary = Webservice::Rosary::API->new;
+  my $NoCache = Webservice::Rosary::API->new(cache_ttl => 0);
 
 =item C<mp3Link("today" | "tomorrow" | "yesterday" | "random")>
 
-Given the string describing I<when>, returns the file name return by the
-API service.  It is not documented, but the base URL for the actual file is,
-L<https://dailyrosary.cf>.
+Given the string describing I<when>, returns the full URL of the MP3
+recording reported by the API service.
 
-  my $Rosary = Webservice::Rosary::API->new; my $mp3File =
-  $Rosary->mp3Link("random"); ...
+  my $Rosary = Webservice::Rosary::API->new;
+  my $mp3URL = $Rosary->mp3Link("random");
+  say $mp3URL;
 
-See the C<avemaria> commandline client to see how the full URL is constructed
-and for an example of using this incombination with C<curl> to automatically
-download the C<.mp3> file.
+See the C<avemaria> commandline client for an example of using this in
+combination with C<curl> to automatically download the C<.mp3> file.
 
 B<Error Handling>
 
-If the server responds, but has not content (which has been experienced
-during the creation of this module), this method will C<die> and print
-an appropriate message to C<STDERR> unless caught. C<avemaria> doesn't
-try to catch this case. 
+Network failures, non-success HTTP responses, empty responses, and malformed
+JSON result in descriptive exceptions unless a stale cached response is
+available and C<stale_if_error> is enabled. An otherwise valid response that
+contains no MP3 link still C<die>s after printing the known direct MP3 sources.
 
 B<MP3 Source Note>
 
@@ -189,14 +354,31 @@ day, e.g.:
     glorious  => "sunday",
   };
 
-Then the day of the week obtained via `$Convert->{$mystery}` can be used
-used to derive the proper day to be used with this call.
+Then the day of the week obtained via C<$Convert->{$mystery}> can be used
+to derive the proper day to be used with this call.
 
 * - although, any Mystery may be said on any day
 
 B<Error Handling>
 
-None.
+Invalid day names return an empty string without making an HTTP request. Network
+failures, HTTP errors, empty responses, and malformed JSON result in a
+descriptive exception unless stale-cache fallback is available.
+
+=item C<details("joyful" | "glorious" | "sorrowful" | "luminous")>
+
+Returns the detailed recitation data for the named Mystery, including the
+decade descriptions used by C<avemaria --fully>. Invalid Mystery names return
+an empty string without making an HTTP request. Network and decoding failures
+are handled in the same way as C<day>.
+
+  my $details = $Rosary->details("joyful");
+
+=item C<clear_cache>
+
+Empties the per-instance response cache and returns the object.
+
+  $Rosary->clear_cache;
 
 =back
 
@@ -230,7 +412,7 @@ B<Quick Start>
   > ... runs through the recitation of the Rosary for today, equivalent,
     to,
 
-  > avemaria $(date "+%A") --pray -t # `date` commands prints out today's day of week
+  > avemaria $(date "+%A") --pray    # `date` prints today's day of week
 
 B<Getting Help>
 
@@ -250,7 +432,7 @@ other set of commands displays the specified Mystery (by day of the week
 or actual name of the Mystery), so that the user may be guided through the
 specified Mystery of the Rosary - from start to finish.
 
-B<Usage - to print MP3 URL to STDIN:>
+B<Usage - to print MP3 URL to STDOUT:>
 
   avemaria [today | yesterday | tomorrow | random]
 
@@ -258,20 +440,21 @@ I<Example 1>
 
   > avemaria today
   > https://dailyrosary.cf/audio-rosary-sorrowful-mysteries.mp3
-   
+
 I<Example 2>
 
   > curl -O \$(avemaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
     % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                    Dload  Upload   Total   Spent    Left  Speed
   100 31.5M  100 31.5M    0     0  2374k      0  0:00:13  0:00:13 --:--:-- 5043k
-  
+
   Downloaded file: audio-rosary-sorrowful-mysteries.mp3
   >
 
 B<Usage - to Pray the Rosary in the commandline:>
 
-  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
+  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--scroll]
+                           [--sleep=0.N] [--speed=N] [--between=N]
 
   Valid DAY_OR_MYSTERY values:
 
@@ -279,11 +462,22 @@ B<Usage - to Pray the Rosary in the commandline:>
 
   Optional flags:
 
-  --pray   : automatically prints prayers, character by character to the screen; default delay is 0.4 seconds.
-   -i      : user must hit <RETURN> after each prayer (and description, if used with "--fully"
-   -t      : user must hit <RETURN> after each description (requires --fully)
-  --fully  : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
-  --sleep  : affects the delay taken before each new character is printed (when used with --pray). Default is 0.4 seconds.
+  --pray     : automatically prints prayers character by character; default delay is 0.04 seconds.
+   -i        : user must hit <RETURN> after each prayer (and description, if used with "--fully")
+   -t        : user must hit <RETURN> after each description (requires --fully)
+  --fully    : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
+  --scroll   : keeps prior prayers visible instead of clearing the terminal between prayers
+  --sleep    : base delay before each new character is printed. Default is 0.04 seconds.
+  --speed    : initial text speed multiplier. Default is 1.0.
+  --between  : pause between prayers, in seconds. Default is 0.75.
+  --nocontrols : disables live keyboard controls.
+
+  While --pray is streaming in an interactive terminal:
+
+    SPACE/p : pause or resume
+    + or =  : speed up immediately
+    - or _  : slow down immediately
+    0       : reset to the initial --speed value
 
 I<Example 3>
 
@@ -455,3 +649,4 @@ Rosary tends to be highly personal; so please let me know what kind of
 Brett Estrade L<< <oodler@cpan.org> >>
 
 +Deo Gratias+
+

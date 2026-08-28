@@ -22,3 +22,22 @@
 
 0.1.5	Thu Jan 3 09:02:57 PM UTC 2025
 	- pinning to perl >= 5.10
+
+0.1.6	Fri Aug 28 03:10:00 AM CDT 2026
+        +JMJ+
+	- added mocked HTTP coverage for successful responses, invalid inputs,
+	  malformed responses, transport failures, cache behavior, and MP3
+	  response-shape regressions
+	- added conservative HTTP failure handling with descriptive exceptions,
+	  a 10-second default timeout, injectable user agents, and stale-cache
+	  fallback
+	- added a small in-memory response cache (300 second default TTL); the
+	  random endpoint is never served from a fresh cache entry
+	- fixed Saturday validation in day() and fixed single-item array handling
+	  in mp3Link()
+	- added avemaria --scroll presentation mode and configurable --between,
+	  --sleep, and --speed timing controls
+	- added live text-stream controls: SPACE/p pauses or resumes, +/- changes
+	  speed in real time, and 0 resets the initial speed
+	- explicit DAY_OR_MYSTERY without --pray now follows the documented
+	  summary behavior; bare avemaria still starts guided prayer

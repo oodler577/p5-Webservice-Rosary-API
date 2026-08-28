@@ -4,17 +4,16 @@ package local::bin::avemaria;
 
 use v5.10;
 use strict;
+use warnings;
 use Webservice::Rosary::API qw//;
+use Webservice::Rosary::Stream qw//;
 use Util::H2O::More qw/ddd Getopt2h2o h2o o2d tr4h2o/;
 use Dispatch::Fu;
-use Time::HiRes qw/sleep/;
 use Text::Fold qw/fold_text/;
 
 binmode(STDOUT, ":utf8");
 
-$|++; #autoflush
-
-my $Rosary = Webservice::Rosary::API->new;
+$|++; # autoflush
 
 our $VERSION = $Webservice::Rosary::API::VERSION;
 
@@ -23,29 +22,76 @@ use constant {
   EXIT_ERROR   => 1,
 };
 
-my $subcommand = shift @ARGV;
+sub _split_command_line {
+  my @argv = @_;
 
-#>>>
-dispatch { # Dispatch::Fu
-  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
-  my @mp3     = qw/today yesterday tomorrow random/;
-  my @day     = qw/sunday monday tuesday wednesday thursday friday saturday/;
-  my @mystery = qw/joyful glorious sorrowful luminous/;
-  return "day"     if (not $subcommand);
-  return "mp3"     if (grep { m/^$subcommand$/i } @mp3);
-  return "day"     if (grep { m/^$subcommand$/i } @day);
-  return "mystery" if (grep { m/^$subcommand$/i } @mystery);
-  return "help"    if (grep { m/^$subcommand/i } qw/-h help mystery/) or ($subcommand =~ m/^-/);
-  return "about"   if (grep { m/^$subcommand$/i } qw/about -a/);
-  return "help";
-} [ $Rosary, lc $subcommand, \@ARGV ],
-  day     => \&PrayTheRosary,
-  mp3     => \&do_mp3,
-  about   => \&do_about,
-  help    => \&do_help,
-  mystery => \&mystery,
-;
-#<<<
+  # No arguments means "pray today's Rosary".
+  return (q{}, \@argv, 1) if not @argv;
+
+  my $first = $argv[0];
+
+  # These are genuine top-level switches rather than prayer options.
+  if ($first =~ m/^(?:-h|--help|-a|--about)$/) {
+    my $subcommand = shift @argv;
+    return ($subcommand, \@argv, 0);
+  }
+
+  # Any other leading option belongs to the prayer command.  Leave it in
+  # @argv for Getopt2h2o and implicitly select today's Mystery.
+  if ($first =~ m/^-/) {
+    return (q{}, \@argv, 1);
+  }
+
+  # Otherwise the first argument is an explicit command/day/Mystery.
+  my $subcommand = shift @argv;
+  return ($subcommand, \@argv, 0);
+}
+
+sub main {
+  my ($subcommand, $ARGV, $implicit_today) = _split_command_line(@_);
+
+  # Bare `avemaria`, or prayer options without an explicit day/Mystery,
+  # remain the convenient guided-prayer shortcut for today's Rosary.
+  push @$ARGV, q{--pray} if $implicit_today;
+
+  my $Rosary = Webservice::Rosary::API->new;
+  my $ok = eval {
+    #>>>
+    dispatch { # Dispatch::Fu
+      my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
+      my @mp3     = qw/today yesterday tomorrow random/;
+      my @day     = qw/sunday monday tuesday wednesday thursday friday saturday/;
+      my @mystery = qw/joyful glorious sorrowful luminous/;
+      return "day"     if not $subcommand;
+      return "mp3"     if grep { m/^\Q$subcommand\E$/i } @mp3;
+      return "day"     if grep { m/^\Q$subcommand\E$/i } @day;
+      return "mystery" if grep { m/^\Q$subcommand\E$/i } @mystery;
+      return "about"   if grep { m/^\Q$subcommand\E$/i } qw/about -a --about/;
+      return "help"    if grep { m/^\Q$subcommand\E$/i } qw/-h --help help mystery/
+                           or $subcommand =~ m/^-/;
+      return "help";
+    } [ $Rosary, lc($subcommand), $ARGV ],
+      day     => \&PrayTheRosary,
+      mp3     => \&do_mp3,
+      about   => \&do_about,
+      help    => \&do_help,
+      mystery => \&mystery,
+    ;
+    #<<<
+    1;
+  };
+
+  if (not $ok) {
+    my $error = $@ || q{unknown error};
+    chomp $error;
+    warn "avemaria: $error\n";
+    return EXIT_ERROR;
+  }
+
+  return EXIT_SUCCESS;
+}
+
+exit main(@ARGV) unless caller;
 
 sub do_mp3 {
   my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
@@ -169,7 +215,7 @@ EOF
 
 sub do_help() {
   return print <<EOF;
-avemaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf  
+avemaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf
 
 VERSION $Webservice::Rosary::API::VERSION
 
@@ -210,30 +256,31 @@ Example 1,
 
   > avemaria today
   > https://dailyrosary.cf/audio-rosary-sorrowful-mysteries.mp3
-   
+
 Example 2,
 
   > curl -O \$(avemaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
     % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                    Dload  Upload   Total   Spent    Left  Speed
   100 31.5M  100 31.5M    0     0  2374k      0  0:00:13  0:00:13 --:--:-- 5043k
-  
+
   Downloaded file: audio-rosary-sorrowful-mysteries.mp3
   >
 
 Note, MP3 Sources are as follows:
 
   + https://www.discerninghearts.com/Devotionals/Rosary-Joyful-Mysteries.mp3
- 
+
   + https://www.discerninghearts.com/Devotionals/Rosary-Luminous-Mysteries.mp3
- 
+
   + https://www.discerninghearts.com/Devotionals/Rosary-Sorrowful-Mysteries.mp3
 
   + https://www.discerninghearts.com/Devotionals/Rosary-Glorious-Mysteries.mp3
 
 Usage - to Pray the Rosary in the commandline:
 
-  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--sleep=0.N] 
+  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--scroll]
+                           [--sleep=0.N] [--speed=N] [--between=N]
 
   Valid DAY_OR_MYSTERY values:
 
@@ -241,11 +288,22 @@ Usage - to Pray the Rosary in the commandline:
 
   Optional flags:
 
-  --pray   : automatically prints prayers, character by character to the screen; default delay is 0.4 seconds.
-   -i      : user must hit <RETURN> after each prayer (and description, if used with "--fully"
-   -t      : user must hit <RETURN> after each description (requires --fully)
-  --fully  : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
-  --sleep  : affects the delay taken before each new character is printed (when used with --pray). Default is 0.4 seconds.
+  --pray     : automatically prints prayers character by character; default delay is 0.04 seconds.
+   -i        : user must hit <RETURN> after each prayer (and description, if used with "--fully")
+   -t        : user must hit <RETURN> after each description (requires --fully)
+  --fully    : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
+  --scroll   : keeps prior prayers visible instead of clearing the terminal between prayers
+  --sleep    : base delay before each new character is printed. Default is 0.04 seconds.
+  --speed    : initial text speed multiplier. Default is 1.0.
+  --between  : pause between prayers, in seconds. Default is 0.75.
+  --nocontrols : disables live keyboard controls.
+
+  While --pray is streaming in an interactive terminal:
+
+    SPACE/p : pause or resume
+    + or =  : speed up immediately
+    - or _  : slow down immediately
+    0       : reset to the initial --speed value
 
 Example 3,
 
@@ -275,23 +333,23 @@ Example 5,
 
 Feedback is Requested.
 
-I have no idea how this is going to be used, and the way someone says the Rosary
-tends to be highly personal; so please let me know what kind of "--pray" controls
-would be helpful.
+The timing and presentation controls are intentionally small so that --pray can
+remain useful in ordinary terminals without turning the client into a full-screen
+application.
 
 +Deo Gratias+
 
 VERSION $Webservice::Rosary::API::VERSION
 
-avemaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf  
-  
+avemaria - commandline Rosary client for DailyRosary.cf and TheRosaryAPI.cf
+
 EOF
 
   exit EXIT_SUCCESS;
 }
 
 sub mystery {
-  my ($Rosary, $subcommand, $ARGV ) = xshift_and_deref @_; 
+  my ($Rosary, $subcommand, $ARGV ) = xshift_and_deref @_;
   my $Convert = h2o {
     luminous  => "thursday",
     sorrowful => "friday",
@@ -302,33 +360,72 @@ sub mystery {
   return PrayTheRosary([$Rosary, $subcommand, $ARGV]);
 }
 
-sub _print($$) {
-  my ($Text, $o) = @_;
-  my @words = split //, $Text;
-  foreach my $Word (@words) {
-    printf "%s", $Word;
-    sleep $o->sleep;
-  }
-  return;
+sub _print {
+  my ($Text, $Stream) = @_;
+  return $Stream->stream($Text);
+}
+
+sub _prompt_continue {
+  my $Stream = shift;
+  $Stream->restore_terminal;
+  print "\n\n<RETURN> to continue ... ";
+  my $next = <STDIN>;
+  $Stream->resume_terminal;
+  return $next;
 }
 
 sub PrayTheRosary {
-  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_; 
+  my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
   my @days_of_week = qw(Sunday Monday Tuesday Wednesday Thursday Friday Saturday);
   my ($sec, $min, $hour, $mday, $mon, $year, $wday) = localtime();
   $subcommand ||= lc $days_of_week[$wday];
-  $ARGV       = (@$ARGV) ? $ARGV : ['--pray'];
-  my $o = Getopt2h2o $ARGV, { sleep => 0.04 }, qw/pray i t fully without sleep=s/;
+
+  my $o = Getopt2h2o $ARGV,
+    {
+      sleep    => 0.04,
+      speed    => 1.0,
+      between  => 0.75,
+      controls => 1,
+      scroll   => 0,
+    },
+    qw/pray i t fully without scroll|no-clear controls! sleep=f speed=f between=f/;
+
+  die "--sleep must be zero or greater\n" if $o->sleep < 0;
+  die "--speed must be greater than zero\n" if $o->speed <= 0;
+  die "--between must be zero or greater\n" if $o->between < 0;
+
   my $Mystery = $Rosary->day($subcommand, $ARGV);
+  die "Rosary API returned no Mystery for $subcommand\n" if not $Mystery;
+
   my $Full;
   if ($o->fully) {
     $Full = $Rosary->details(lc $Mystery->group_by);
   }
-  my $Name    = sprintf "%s - The %s Mysteries", ucfirst $subcommand, $Mystery->group_by;
+
+  my $Name = sprintf "%s - The %s Mysteries", ucfirst $subcommand, $Mystery->group_by;
   unless ($o->pray) {
     say $Name;
     exit EXIT_SUCCESS;
   }
+
+  my $Stream = Webservice::Rosary::Stream->new(
+    delay    => $o->sleep,
+    speed    => $o->speed,
+    controls => $o->controls,
+  );
+
+  # Do not leave an interactive terminal in cbreak mode if prayer is stopped
+  # with Ctrl-C or terminated by the shell.
+  local $SIG{INT} = sub {
+    $Stream->restore_terminal;
+    print STDERR "\n";
+    exit 130;
+  };
+  local $SIG{TERM} = sub {
+    $Stream->restore_terminal;
+    exit 143;
+  };
+
   # Iterate over the entire Rosary, in Perl
   my @Prayers       = qw/In_The_Name_1 I_Believe Our__Father_1 Hail__Mary_1 Hail__Mary_2 Hail__Mary_3 Glory_Be_1 Oh_My_Jesus_1/;
   my $Decade        = 0;
@@ -338,7 +435,7 @@ sub PrayTheRosary {
   my $Gloria_Patria = 1; # "Glory be to the Father, to the Son, and to the Holy Ghost ..."
   my $O_Mi_Jesu     = 1; # "O My Jesus, forgive us our sins ..." (aka, "The Fatima Prayer")
   foreach my $D (1..5) {
-    push @Prayers, sprintf "Announce_%d",   ++$Announce;
+    push @Prayers, sprintf "Announce_%d", ++$Announce;
     push @Prayers, sprintf "Our__Father_%d", ++$Pater_Noster;
     foreach my $I (1..10) {
       push @Prayers, sprintf "Hail__Mary_%d_%d", ++$Ave_Maria, $I;
@@ -347,6 +444,7 @@ sub PrayTheRosary {
     push @Prayers, sprintf "Oh_My_Jesus_%d", ++$O_Mi_Jesu;
   }
   push @Prayers, qw/Holy_Queen Pray_For_Us_Most_Holy_Mother_of_God Oremus Final_Prayer Most_Holy_Rosary In_The_Name_2/;
+
   $Mystery = tr4h2o o2d $Mystery;
   $Mystery->{pray_for_us_most_holy_mother_of_god} = <<EOF;
 V. Pray for us, Oh Holy Mother of God
@@ -354,40 +452,55 @@ R. That we may be made worth of the promises of Christ.
 EOF
   $Mystery->{oremus} = "V. Let us Pray.";
   $Mystery->{most_holy_rosary} = "";
-  $Mystery->{in_the_name_2} = sprintf "The Most Holy Rosary.\n%s" . $Mystery->{in_the_name_2};
+  $Mystery->{in_the_name_2} = sprintf "The Most Holy Rosary.\n%s", $Mystery->{in_the_name_2};
   h2o $Mystery;
+
   my $count  = 0;
   my $decade = 0;
+  my $total  = scalar @Prayers;
+
   foreach my $Prayer (map { lc } @Prayers) {
-    my $Text = $Mystery->$Prayer; 
-    $Text =~ s/\\r\\n|\\n/\n/g; 
+    my $Text = $Mystery->$Prayer;
+    $Text = q{} if not defined $Text;
+    $Text =~ s/\\r\\n|\\n/\n/g;
     $Text =~ s/Lead/\nLead/; # us to Heaven
-    sleep 0.75;              # slight pause
-    print "\033[2J\033[H";   # clear terminal
-    my $align = sprintf "%30s ", $Name;
-    printf "%s[%-2d of %d]\n\n", $align, ++$count, scalar @Prayers;
-    if ($o->fully and $Prayer =~ m/Announce/i) {
+
+    $Stream->wait($o->between) if $count;
+
+    if ($o->scroll) {
+      print "\n\n" if $count;
+    }
+    else {
+      print "\033[2J\033[H"; # clear terminal
+    }
+
+    ++$count;
+    print "$Name\n";
+    printf "Prayer %d of %d", $count, $total;
+    printf "  [%s]", $Stream->controls_help if $Stream->interactive;
+    print "\n", (q{-} x 72), "\n\n";
+
+    if ($o->fully and $Prayer =~ m/announce/i) {
       my $details = $Full->[$decade++];
-      _print $details->title, $o;
+      _print $details->title, $Stream;
       print "\n\n";
-      _print fold_text($details->text, 72), $o;
+      _print fold_text($details->text, 72), $Stream;
       print "\n\n";
-      _print $details->fruit, $o;
+      _print $details->fruit, $Stream;
       print "\n\n";
-      if ($o->i or $o->t) {
-        print "\n\n<RETURN> to continue ... ";
-        my $next = <STDIN>
-      }
+      _prompt_continue($Stream) if $o->i or $o->t;
     }
-    _print $Text, $o;
-    if ($o->i) {
-      print "\n\n<RETURN> to continue ... ";
-      my $next = <STDIN>
-    }
+
+    _print $Text, $Stream;
+    _prompt_continue($Stream) if $o->i;
   }
+
+  $Stream->restore_terminal;
+  print "\n";
   exit EXIT_SUCCESS;
 }
 
-123
+1;
 
 __END__
+
