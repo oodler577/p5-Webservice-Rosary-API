@@ -9,7 +9,7 @@ use HTTP::Tiny qw//;
 use JSON qw/decode_json/;
 use Scalar::Util qw/reftype/;
 
-our $VERSION = "0.1.6";
+our $VERSION = "0.1.7";
 
 use constant {
   BASEURL  => "https://the-rosary-api.vercel.app/v1",

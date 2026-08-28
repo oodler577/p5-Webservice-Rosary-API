@@ -24,7 +24,6 @@
 	- pinning to perl >= 5.10
 
 0.1.6	Fri Aug 28 03:10:00 AM CDT 2026
-        +JMJ+
 	- added mocked HTTP coverage for successful responses, invalid inputs,
 	  malformed responses, transport failures, cache behavior, and MP3
 	  response-shape regressions
@@ -41,3 +40,22 @@
 	  speed in real time, and 0 resets the initial speed
 	- explicit DAY_OR_MYSTERY without --pray now follows the documented
 	  summary behavior; bare avemaria still starts guided prayer
+        +JMJ+
+
+0.1.7	Fri Aug 28 03:10:00 AM CDT 2026
+	- added traditional opening intentions: the first Our Father for the
+	  intentions and well-being of Pope Leo XIV, followed by Hail Marys for
+	  an increase in Faith, Hope, and Charity
+	- normal prayer mode now presents each decade title and Fruit of the
+	  Mystery; --fully retains the longer meditation text
+	- reduced --scroll clutter by showing the overall heading once and section
+	  headings only when a new decade begins; Mystery headings are uppercase
+	- added opt-in --color output with tranquil dark-background and
+	  light-background profiles selected with --dark or --light
+	- normal prayer mode now presents each decade title and Fruit of the
+	  Mystery; --fully retains the longer meditation text
+	- reduced --scroll clutter by showing the overall heading once and section
+	  headings only when a new decade begins; Mystery headings are uppercase
+	- added opt-in --color output with tranquil dark-background and
+	  light-background profiles selected with --dark or --light
+        +JMJ+

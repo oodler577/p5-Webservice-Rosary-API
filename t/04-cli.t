@@ -53,5 +53,85 @@ for my $about (qw/-a --about/) {
   ok !$implicit, "$about does not imply prayer";
 }
 
+{
+  my ($command, $argv, $implicit) = split_cli('--color', '--light', '--scroll');
+  is $command, q{}, '--color profile options do not become subcommands';
+  is_deeply $argv, ['--color', '--light', '--scroll'],
+    'color and presentation options are preserved';
+  ok $implicit, 'color options alone imply today';
+}
+
+
+{
+  my ($command, $argv, $implicit) = split_cli('--pray', '--unceasingly', '--scroll');
+  is $command, q{}, '--pray and --unceasingly compose as prayer options';
+  is_deeply $argv, ['--pray', '--unceasingly', '--scroll'],
+    'explicit --pray may be combined with --unceasingly';
+  ok $implicit, 'flags-only --pray --unceasingly selects today';
+}
+
+{
+  my ($command, $argv, $implicit) = split_cli('--unceasingly', '--scroll', '--color');
+  is $command, q{}, '--unceasingly is a prayer option, not a subcommand';
+  is_deeply $argv, ['--unceasingly', '--scroll', '--color'],
+    'unceasing prayer composes with presentation options';
+  ok $implicit, 'flags-only unceasing prayer selects today';
+}
+
+{
+  my ($command, $argv, $implicit) = split_cli('Monday', '--unceasingly', '--color', '--dark');
+  is $command, 'Monday', 'explicit day is preserved with --unceasingly';
+  is_deeply $argv, ['--unceasingly', '--color', '--dark'],
+    'unceasing and color options remain available for prayer parsing';
+  ok !$implicit, 'explicit day remains explicit with --unceasingly';
+}
+
+# Presentation helpers are intentionally pure so the UX can be regression-tested
+# without making live API calls.
+is local::bin::avemaria::_mystery_heading('friday', 'Sorrowful'),
+  'FRIDAY - THE SORROWFUL MYSTERIES',
+  'overall Mystery heading is uppercase';
+is local::bin::avemaria::_prayer_role('hail__mary_9_3'), 'hail_mary',
+  'Hail Marys use the Marian color role';
+is local::bin::avemaria::_prayer_role('our__father_4'), 'our_father',
+  'Our Fathers use the green color role';
+is local::bin::avemaria::_prayer_role('glory_be_4'), 'glory_be',
+  'Glory Be uses the gold color role';
+is local::bin::avemaria::_prayer_role('oh_my_jesus_4'), 'fatima',
+  'Fatima prayer uses the lavender color role';
+is local::bin::avemaria::_mystery_role('Joyful', 0), 'mystery_joyful',
+  'Joyful set heading uses the Joyful family role';
+is local::bin::avemaria::_mystery_role('Sorrowful', 1), 'mystery_sorrowful_title',
+  'specific Sorrowful Mystery uses the bold Sorrowful role';
+is local::bin::avemaria::_mystery_role('Glorious', 1), 'mystery_glorious_title',
+  'specific Glorious Mystery uses the bold Glorious role';
+is local::bin::avemaria::_mystery_role('Luminous', 1), 'mystery_luminous_title',
+  'Luminous Mysteries are included in the family palette';
+
+my $dark = local::bin::avemaria::_color_palette('dark');
+my $light = local::bin::avemaria::_color_palette('light');
+ok $dark->{hail_mary} ne $dark->{our_father},
+  'dark profile keeps Marian and Our Father colors distinct';
+ok $light->{hail_mary} ne $light->{our_father},
+  'light profile keeps Marian and Our Father colors distinct';
+ok $dark->{hail_mary} ne $light->{hail_mary},
+  'dark and light profiles use different contrast values';
+is $dark->{hail_mary}, $dark->{mystery_joyful},
+  'dark Joyful heading uses the same light blue as the Hail Mary';
+like $dark->{mystery_sorrowful}, qr/38;5;167m/,
+  'dark Sorrowful heading uses muted dark red';
+like $dark->{mystery_glorious}, qr/38;5;180m/,
+  'dark Glorious heading uses soft gold';
+like $dark->{mystery_luminous}, qr/38;5;183m/,
+  'dark Luminous heading uses gentle violet';
+like $dark->{mystery_joyful_title}, qr/^\e\[1;/,
+  'specific Mystery title is bold';
+is(($light->{mystery_sorrowful_title} =~ /88m/) ? 1 : 0, 1,
+  'light profile uses a deeper maroon for Sorrowful titles');
+
+
+like Webservice::Rosary::Stream->controls_help, qr/q quit/,
+  'interactive help advertises q quit';
+
 done_testing;
 

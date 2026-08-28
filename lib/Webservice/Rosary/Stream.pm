@@ -6,7 +6,7 @@ use warnings;
 
 use Time::HiRes qw/sleep/;
 
-our $VERSION = "0.1.6";
+our $VERSION = "0.1.7";
 
 sub new {
   my $class = shift;
@@ -21,6 +21,9 @@ sub new {
     speed_step  => defined $opts{speed_step} ? 0 + $opts{speed_step} : 1.25,
     controls    => exists $opts{controls} ? $opts{controls} : 1,
     paused      => 0,
+    quit_requested => 0,
+    confirm_quit   => $opts{confirm_quit},
+    on_quit        => $opts{on_quit},
     read_key    => $opts{read_key},
     sleep_cb    => $opts{sleep_cb} || sub { sleep $_[0] },
     write_cb    => $opts{write_cb} || sub { print STDOUT $_[0] },
@@ -48,10 +51,11 @@ sub new {
 sub delay       { return $_[0]->{delay}; }
 sub speed       { return $_[0]->{speed}; }
 sub paused      { return $_[0]->{paused}; }
+sub quit_requested { return $_[0]->{quit_requested}; }
 sub interactive { return $_[0]->{controls} && $_[0]->{terminal_active}; }
 
 sub controls_help {
-  return q{SPACE/p pause/resume, +/- speed, 0 reset};
+  return q{SPACE/p pause/resume, +/- speed, 0 reset, q quit};
 }
 
 sub _enable_terminal_controls {
@@ -111,20 +115,54 @@ sub handle_key {
     $self->{speed} = $self->{base_speed};
     return q{reset};
   }
+  if (lc($key) eq q{q}) {
+    return q{quit};
+  }
 
   return q{};
+}
+
+sub _confirm_quit {
+  my $self = shift;
+  return 1 if $self->{quit_requested};
+
+  # A blocking y/N prompt cannot safely run while the terminal is in cbreak
+  # mode. Restore it first; if the user declines, resume live controls.
+  $self->restore_terminal;
+
+  my $confirmed;
+  if ($self->{confirm_quit}) {
+    $confirmed = $self->{confirm_quit}->() ? 1 : 0;
+  }
+  else {
+    print STDOUT "\nQuit y/N? ";
+    my $answer = <STDIN>;
+    $confirmed = defined($answer) && $answer =~ m/^\s*y(?:es)?\s*$/i ? 1 : 0;
+  }
+
+  if ($confirmed) {
+    $self->{quit_requested} = 1;
+    $self->{paused} = 0;
+    $self->{on_quit}->() if $self->{on_quit};
+    return 1;
+  }
+
+  $self->resume_terminal;
+  return 0;
 }
 
 sub _poll_control {
   my $self = shift;
   return q{} if not $self->interactive;
   my $key = $self->{read_key}->();
-  return $self->handle_key($key);
+  my $action = $self->handle_key($key);
+  $self->_confirm_quit if $action eq q{quit};
+  return $action;
 }
 
 sub _wait_while_paused {
   my $self = shift;
-  while ($self->{paused}) {
+  while ($self->{paused} and not $self->{quit_requested}) {
     $self->{sleep_cb}->(0.05);
     $self->_poll_control;
   }
@@ -138,7 +176,9 @@ sub _sleep_with_controls {
   my $remaining = $seconds;
   while ($remaining > 0) {
     $self->_poll_control;
+    return q{quit} if $self->{quit_requested};
     $self->_wait_while_paused;
+    return q{quit} if $self->{quit_requested};
 
     my $slice = $remaining > 0.025 ? 0.025 : $remaining;
     $self->{sleep_cb}->($slice);
@@ -153,12 +193,15 @@ sub stream {
 
   foreach my $char (split //, $text) {
     $self->_poll_control;
+    return q{quit} if $self->{quit_requested};
     $self->_wait_while_paused;
+    return q{quit} if $self->{quit_requested};
     $self->{write_cb}->($char);
     my $delay = $self->{delay} / $self->{speed};
-    $self->_sleep_with_controls($delay);
+    my $status = $self->_sleep_with_controls($delay);
+    return q{quit} if defined $status and $status eq q{quit};
   }
-  return;
+  return q{};
 }
 
 sub wait {
@@ -200,18 +243,23 @@ keyboard controls through L<Term::ReadKey>. Redirected output remains
 noninteractive.
 
 The controls are intentionally small: C<SPACE> or C<p> pauses and resumes,
-C<+> speeds up, C<-> slows down, and C<0> restores the initial speed.
+C<+> speeds up, C<-> slows down, C<0> restores the initial speed, and C<q>
+asks for confirmation before quitting.
 
 =head1 METHODS
 
 =head2 new
 
-Accepts C<delay>, C<speed>, C<controls>, C<min_speed>, C<max_speed>, and
-C<speed_step>. The delay is the base number of seconds between characters.
+Accepts C<delay>, C<speed>, C<controls>, C<min_speed>, C<max_speed>,
+C<speed_step>, C<confirm_quit>, and C<on_quit>. The delay is the base number of seconds between characters.
 C<speed> is a multiplier and defaults to C<1>. The default minimum and maximum
 speeds are C<0.25> and C<8>, and each C<+> or C<-> adjustment changes the speed
 by a factor of C<1.25>. These limits and the adjustment factor may be overridden
 with C<min_speed>, C<max_speed>, and C<speed_step>.
+
+C<confirm_quit> may be supplied as a callback returning true or false instead
+of using the default C<Quit y/N?> prompt. C<on_quit> is called after a confirmed
+quit, allowing the client to print a farewell or perform other cleanup.
 
 For tests, C<read_key>, C<sleep_cb>, and C<write_cb> callbacks may be supplied,
 which allows the timing and keyboard behavior to be exercised without a real
@@ -231,8 +279,9 @@ are consumed but do not change the duration of this fixed wait.
 =head2 handle_key
 
 Processes one control key. C<SPACE> and C<p> toggle pause, C<+> and C<=>
-increase speed, C<-> and C<_> decrease speed, and C<0> restores the initial
-speed. Primarily useful for testing or alternate terminal front ends.
+increase speed, C<-> and C<_> decrease speed, C<0> restores the initial speed,
+and C<q> requests the quit-confirmation flow. Primarily useful for testing or
+alternate terminal front ends.
 
 =head2 restore_terminal / resume_terminal
 

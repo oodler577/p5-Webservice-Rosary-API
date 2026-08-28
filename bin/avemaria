@@ -7,6 +7,7 @@ use strict;
 use warnings;
 use Webservice::Rosary::API qw//;
 use Webservice::Rosary::Stream qw//;
+use Webservice::Rosary::Tradition qw/opening_intention/;
 use Util::H2O::More qw/ddd Getopt2h2o h2o o2d tr4h2o/;
 use Dispatch::Fu;
 use Text::Fold qw/fold_text/;
@@ -21,6 +22,118 @@ use constant {
   EXIT_SUCCESS => 0,
   EXIT_ERROR   => 1,
 };
+
+sub _mystery_heading {
+  my ($day, $group) = @_;
+  return uc sprintf q{%s - The %s Mysteries}, ucfirst($day), $group;
+}
+
+sub _prayer_role {
+  my $prayer = shift // q{};
+  return q{hail_mary}  if $prayer =~ m/^hail__mary/;
+  return q{our_father} if $prayer =~ m/^our__father/;
+  return q{glory_be}   if $prayer =~ m/^glory_be/;
+  return q{fatima}     if $prayer =~ m/^oh_my_jesus/;
+  return q{neutral};
+}
+
+sub _mystery_role {
+  my ($group, $bold) = @_;
+  $group = lc($group // q{});
+  return q{mystery_title} if $bold and $group !~ m/^(?:joyful|sorrowful|glorious|luminous)$/;
+  return q{mystery}       if not $bold and $group !~ m/^(?:joyful|sorrowful|glorious|luminous)$/;
+  return sprintf q{mystery_%s%s}, $group, ($bold ? q{_title} : q{});
+}
+
+sub _color_palette {
+  my $profile = shift // q{dark};
+
+  # 256-color values are deliberately muted. The dark profile uses soft
+  # pastels; the light profile uses deeper versions of the same color families.
+  my %dark = (
+    reset                   => "\e[0m",
+    mystery                 => "\e[38;5;153m",     # fallback pale blue-white
+    mystery_title           => "\e[1;38;5;153m",   # fallback bold heading
+    mystery_joyful          => "\e[38;5;117m",     # light Marian blue
+    mystery_joyful_title    => "\e[1;38;5;117m",   # bold light Marian blue
+    mystery_sorrowful       => "\e[38;5;167m",     # muted dark red / maroon
+    mystery_sorrowful_title => "\e[1;38;5;167m",   # bold muted dark red
+    mystery_glorious        => "\e[38;5;180m",     # soft gold / yellow
+    mystery_glorious_title  => "\e[1;38;5;180m",   # bold soft gold
+    mystery_luminous        => "\e[38;5;183m",     # tranquil lavender-violet
+    mystery_luminous_title  => "\e[1;38;5;183m",   # bold lavender-violet
+    hail_mary               => "\e[38;5;117m",     # Hail Mary is always light blue
+    our_father              => "\e[38;5;114m",     # soft green
+    glory_be                => "\e[38;5;180m",     # warm muted gold
+    fatima                  => "\e[38;5;183m",     # gentle lavender
+    fruit                   => "\e[38;5;151m",     # pale teal-green
+    intention               => "\e[38;5;250m",     # soft gray
+    meditation              => "\e[38;5;252m",     # quiet near-white
+    separator               => "\e[38;5;242m",     # unobtrusive gray
+    neutral                 => "\e[38;5;252m",
+  );
+
+  my %light = (
+    reset                   => "\e[0m",
+    mystery                 => "\e[38;5;24m",      # fallback deep calm blue
+    mystery_title           => "\e[1;38;5;24m",    # fallback bold heading
+    mystery_joyful          => "\e[38;5;31m",      # deeper Marian blue
+    mystery_joyful_title    => "\e[1;38;5;31m",    # bold deeper Marian blue
+    mystery_sorrowful       => "\e[38;5;88m",      # deep maroon
+    mystery_sorrowful_title => "\e[1;38;5;88m",    # bold deep maroon
+    mystery_glorious        => "\e[38;5;136m",     # subdued gold
+    mystery_glorious_title  => "\e[1;38;5;136m",   # bold subdued gold
+    mystery_luminous        => "\e[38;5;97m",      # muted violet
+    mystery_luminous_title  => "\e[1;38;5;97m",    # bold muted violet
+    hail_mary               => "\e[38;5;31m",      # Marian blue
+    our_father              => "\e[38;5;65m",      # muted green
+    glory_be                => "\e[38;5;136m",     # subdued gold
+    fatima                  => "\e[38;5;97m",      # muted violet
+    fruit                   => "\e[38;5;30m",      # restrained teal
+    intention               => "\e[38;5;240m",     # dark soft gray
+    meditation              => "\e[38;5;238m",     # charcoal
+    separator               => "\e[38;5;250m",     # pale gray
+    neutral                 => "\e[38;5;236m",
+  );
+
+  return $profile eq q{light} ? \%light : \%dark;
+}
+
+sub _color_enabled {
+  my $o = shift;
+  return 0 if not $o->color;
+  return 0 if exists $ENV{NO_COLOR};
+  return 0 if defined $ENV{TERM} and $ENV{TERM} eq q{dumb};
+  return 0 if not -t STDOUT;
+  return 1;
+}
+
+sub _styled {
+  my ($text, $role, $Palette) = @_;
+  return $text if not $Palette;
+  my $start = $Palette->{$role} // $Palette->{neutral};
+  return $start . $text . $Palette->{reset};
+}
+
+sub _say_styled {
+  my ($text, $role, $Palette) = @_;
+  say _styled($text, $role, $Palette);
+  return;
+}
+
+sub _stream_styled {
+  my ($text, $role, $Stream, $Palette) = @_;
+  print $Palette->{$role} // $Palette->{neutral} if $Palette;
+  $Stream->stream($text);
+  print $Palette->{reset} if $Palette;
+  return;
+}
+
+sub _separator {
+  my $Palette = shift;
+  print _styled(q{-} x 72, q{separator}, $Palette), "\n";
+  return;
+}
 
 sub _split_command_line {
   my @argv = @_;
@@ -228,7 +341,7 @@ Quick Start
   > ... runs through the recitation of the Rosary for today, equivalent,
     to,
 
-  > avemaria \$(date "+%A") --pray -t # `date` commands prints out today's day of week
+  > avemaria \$(date "+%A") --pray    # `date` prints today's day of week
 
 Getting Help
 
@@ -248,7 +361,7 @@ of commands displays the specified Mystery (by day of the week or actual
 name of the Mystery), so that the user may be guided through the specified
 Mystery of the Rosary - from start to finish.
 
-Usage - to print MP3 URL to STDIN:
+Usage - to print MP3 URL to STDOUT:
 
   avemaria today | yesterday | tomorrow | random
 
@@ -279,24 +392,55 @@ Note, MP3 Sources are as follows:
 
 Usage - to Pray the Rosary in the commandline:
 
-  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--scroll]
+  avemaria DAY_OR_MYSTERY [--pray] [--unceasingly]
+                           [--scroll] [--fully] [-i] [-t]
                            [--sleep=0.N] [--speed=N] [--between=N]
+                           [--nocontrols]
+                           [--color [--dark | --light]]
 
   Valid DAY_OR_MYSTERY values:
 
     Joyful, Sorrowful, Luminous, Glorious, Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday
 
-  Optional flags:
+  Prayer mode:
 
-  --pray     : automatically prints prayers character by character; default delay is 0.04 seconds.
-   -i        : user must hit <RETURN> after each prayer (and description, if used with "--fully")
-   -t        : user must hit <RETURN> after each description (requires --fully)
-  --fully    : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
-  --scroll   : keeps prior prayers visible instead of clearing the terminal between prayers
-  --sleep    : base delay before each new character is printed. Default is 0.04 seconds.
-  --speed    : initial text speed multiplier. Default is 1.0.
-  --between  : pause between prayers, in seconds. Default is 0.75.
-  --nocontrols : disables live keyboard controls.
+  --pray          : stream the selected Rosary prayer by prayer.
+  --unceasingly   : continuously repeat the selected Rosary until stopped;
+                    implies --pray. Using both --pray and --unceasingly is valid
+                    but redundant. The same selected day/Mystery is repeated.
+
+  Presentation:
+
+  --scroll        : keep prior prayers visible instead of clearing the terminal.
+  --fully         : include the full decade meditation in addition to its title
+                    and Fruit of the Mystery.
+   -i             : require <RETURN> after each prayer (and each description
+                    when used with --fully).
+   -t             : require <RETURN> after each decade description; requires
+                    --fully.
+
+  Timing and interaction:
+
+  --sleep=0.N     : base delay before each character. Default is 0.04 seconds.
+  --speed=N       : initial text speed multiplier. Default is 1.0.
+  --between=N     : pause between prayers. Default is 0.75 seconds.
+  --nocontrols    : disable live single-key controls. -i/-t <RETURN> prompts
+                    still work. With --unceasingly, use Ctrl-C to stop when
+                    live controls are disabled.
+
+  Color:
+
+  --color         : enable the tranquil color palette on an interactive terminal.
+  --dark          : select the dark-background profile; this is the --color default.
+  --light         : select the light-background profile.
+                    --dark and --light require --color and are mutually exclusive.
+
+  Color is never emitted unless --color is requested. NO_COLOR and non-terminal
+  output remain uncolored. --color by itself uses the --dark profile. Hail Marys
+  are always light Marian blue and Our Fathers soft green. Joyful Mystery headings
+  are light blue, Sorrowful dark red/maroon, Glorious soft yellow/gold, and
+  Luminous gentle violet. Each individual Mystery title is bold in its family's
+  color. Other prayers and supporting text use coordinated tranquil accents.
 
   While --pray is streaming in an interactive terminal:
 
@@ -304,6 +448,7 @@ Usage - to Pray the Rosary in the commandline:
     + or =  : speed up immediately
     - or _  : slow down immediately
     0       : reset to the initial --speed value
+    q       : ask "Quit y/N?"; a confirmed quit exits cleanly
 
 Example 3,
 
@@ -320,7 +465,7 @@ Example 3,
 Example 4,
 
   > avemaria Friday --pray -t --fully
-  > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
+  > .. clears screen, then prays the specified Mystery (Sorrowful in this case),
     while pausing only at the beginning of each Mystery after the description has
     been printed ...
 
@@ -329,13 +474,31 @@ Example 5,
   Run with absolutely no subcommands or flags, runs "--pray" for Today's Mystery,
 
   > avemaria
-  > .. clears screen, the plays the specified Mystery for Today ...
+  > .. clears screen, then prays the specified Mystery for Today ...
+
+Example 6,
+
+  Pray continuously until q (with confirmation) or Ctrl-C is used to stop:
+
+  > avemaria --unceasingly --scroll --color
+
+  --unceasingly composes with the ordinary prayer options. It implies --pray,
+  preserves the selected day or Mystery between cycles, and retains live speed
+  changes between cycles. In --scroll mode the overall heading is shown again
+  at the beginning of each new Rosary, while ordinary prayer lines remain
+  uncluttered.
 
 Feedback is Requested.
 
 The timing and presentation controls are intentionally small so that --pray can
 remain useful in ordinary terminals without turning the client into a full-screen
-application.
+application. In --scroll mode, the overall heading is shown once per Rosary and
+decade headings are shown only when a new decade begins, keeping repeated
+prayer text uncluttered. Mystery headings are displayed in uppercase. Normal prayer mode
+shows each decade title and Fruit of the Mystery; --fully additionally presents
+the longer meditation text. The introductory Our Father is offered for the
+intentions and well-being of Pope Leo XIV, followed by Hail Marys for an
+increase in Faith, Hope, and Charity.
 
 +Deo Gratias+
 
@@ -387,23 +550,40 @@ sub PrayTheRosary {
       between  => 0.75,
       controls => 1,
       scroll   => 0,
+      color    => 0,
+      dark     => 0,
+      light       => 0,
+      unceasingly => 0,
     },
-    qw/pray i t fully without scroll|no-clear controls! sleep=f speed=f between=f/;
+    qw/pray unceasingly i t fully without scroll|no-clear controls! sleep=f speed=f between=f color dark light/;
 
   die "--sleep must be zero or greater\n" if $o->sleep < 0;
   die "--speed must be greater than zero\n" if $o->speed <= 0;
   die "--between must be zero or greater\n" if $o->between < 0;
+  die "-t requires --fully\n" if $o->t and not $o->fully;
+  die "--dark and --light cannot be used together\n" if $o->dark and $o->light;
+  die "--dark and --light require --color\n" if not $o->color and ($o->dark or $o->light);
+
+  # --unceasingly is itself a prayer mode rather than a presentation modifier,
+  # so it naturally implies --pray even with an explicit day or Mystery.
+  my $praying = $o->pray || $o->unceasingly;
 
   my $Mystery = $Rosary->day($subcommand, $ARGV);
   die "Rosary API returned no Mystery for $subcommand\n" if not $Mystery;
 
-  my $Full;
-  if ($o->fully) {
-    $Full = $Rosary->details(lc $Mystery->group_by);
+  # Detailed Mystery data supplies each decade title and Fruit of the Mystery.
+  # If that secondary endpoint is temporarily unavailable, retain the basic
+  # recitation rather than making the whole Rosary unusable.
+  my $Details = eval { $Rosary->details(lc $Mystery->group_by) };
+  if ($@) {
+    my $error = $@;
+    chomp $error;
+    warn "avemaria: could not load Mystery details: $error\n";
+    $Details = undef;
   }
 
-  my $Name = sprintf "%s - The %s Mysteries", ucfirst $subcommand, $Mystery->group_by;
-  unless ($o->pray) {
+  my $Name = _mystery_heading($subcommand, $Mystery->group_by);
+  unless ($praying) {
     say $Name;
     exit EXIT_SUCCESS;
   }
@@ -412,7 +592,17 @@ sub PrayTheRosary {
     delay    => $o->sleep,
     speed    => $o->speed,
     controls => $o->controls,
+    on_quit  => sub {
+      print "\nPray the Rosary every day, +JMJ+\n";
+      exit EXIT_SUCCESS;
+    },
   );
+
+  # --color defaults to the dark-background profile unless --light is explicit.
+  my $profile = $o->light ? q{light} : q{dark};
+  my $Palette = _color_enabled($o) ? _color_palette($profile) : undef;
+  my $MysteryRole = _mystery_role($Mystery->group_by, 0);
+  my $MysteryTitleRole = _mystery_role($Mystery->group_by, 1);
 
   # Do not leave an interactive terminal in cbreak mode if prayer is stopped
   # with Ctrl-C or terminated by the shell.
@@ -455,44 +645,107 @@ EOF
   $Mystery->{in_the_name_2} = sprintf "The Most Holy Rosary.\n%s", $Mystery->{in_the_name_2};
   h2o $Mystery;
 
-  my $count  = 0;
-  my $decade = 0;
-  my $total  = scalar @Prayers;
+  my $total = scalar @Prayers;
+  my $cycle = 0;
 
-  foreach my $Prayer (map { lc } @Prayers) {
-    my $Text = $Mystery->$Prayer;
-    $Text = q{} if not defined $Text;
-    $Text =~ s/\\r\\n|\\n/\n/g;
-    $Text =~ s/Lead/\nLead/; # us to Heaven
+  ROSARY: while (1) {
+    # A new cycle is a new Rosary, but it deliberately reuses the same API
+    # response, Stream object, live speed, color profile, and selected Mystery.
+    # This keeps --unceasingly continuous without generating network traffic
+    # on every repetition.
+    $Stream->wait($o->between) if $cycle;
+    print "\n\n" if $cycle and $o->scroll;
+    ++$cycle;
 
-    $Stream->wait($o->between) if $count;
+    my $count  = 0;
+    my $decade = 0;
 
     if ($o->scroll) {
-      print "\n\n" if $count;
-    }
-    else {
-      print "\033[2J\033[H"; # clear terminal
-    }
-
-    ++$count;
-    print "$Name\n";
-    printf "Prayer %d of %d", $count, $total;
-    printf "  [%s]", $Stream->controls_help if $Stream->interactive;
-    print "\n", (q{-} x 72), "\n\n";
-
-    if ($o->fully and $Prayer =~ m/announce/i) {
-      my $details = $Full->[$decade++];
-      _print $details->title, $Stream;
-      print "\n\n";
-      _print fold_text($details->text, 72), $Stream;
-      print "\n\n";
-      _print $details->fruit, $Stream;
-      print "\n\n";
-      _prompt_continue($Stream) if $o->i or $o->t;
+      _say_styled($Name, $MysteryRole, $Palette);
+      if ($Stream->interactive) {
+        _say_styled('[' . $Stream->controls_help . ']', q{intention}, $Palette);
+      }
+      _separator($Palette);
+      print "\n";
     }
 
-    _print $Text, $Stream;
-    _prompt_continue($Stream) if $o->i;
+    foreach my $Prayer (map { lc } @Prayers) {
+      my $Text = $Mystery->$Prayer;
+      $Text = q{} if not defined $Text;
+      $Text =~ s/\\r\\n|\\n/\n/g;
+      $Text =~ s/Lead/\nLead/; # us to Heaven
+
+      my $is_decade = $Prayer =~ m/^announce_(\d+)$/ ? 1 : 0;
+      my $detail = $is_decade && ref($Details) eq q{ARRAY}
+        ? $Details->[$decade]
+        : undef;
+
+      $Stream->wait($o->between) if $count;
+
+      if ($o->scroll) {
+        # Ordinary prayers simply continue down the terminal. A visible section
+        # break is reserved for the start of each new decade.
+        print "\n\n" if $count;
+      }
+      else {
+        print "\033[2J\033[H"; # clear terminal
+      }
+
+      ++$count;
+
+      if (not $o->scroll) {
+        _say_styled($Name, $MysteryRole, $Palette);
+        printf "Prayer %d of %d", $count, $total;
+        printf "  [%s]", $Stream->controls_help if $Stream->interactive;
+        print "\n";
+        _separator($Palette);
+        print "\n";
+      }
+
+      if ($is_decade) {
+        my $title = $detail ? ($detail->title // q{}) : q{};
+        my $fruit = $detail ? ($detail->fruit // q{}) : q{};
+
+        if (length $title) {
+          _separator($Palette) if $o->scroll;
+          _say_styled(uc($title), $MysteryTitleRole, $Palette);
+          if (length $fruit) {
+            $fruit = "Fruit of the Mystery: $fruit" if $fruit !~ m/fruit/i;
+            _say_styled($fruit, q{fruit}, $Palette);
+          }
+          _separator($Palette) if $o->scroll;
+          print "\n";
+        }
+
+        if ($o->fully and $detail) {
+          my $meditation = $detail->text // q{};
+          if (length $meditation) {
+            _stream_styled(fold_text($meditation, 72), q{meditation}, $Stream, $Palette);
+            print "\n\n";
+          }
+          _prompt_continue($Stream) if $o->i or $o->t;
+        }
+
+        # The day response normally contains an announcement duplicating the
+        # detailed title. Prefer the richer title/fruit presentation when it is
+        # available; retain the API announcement as a fallback.
+        $Text = q{} if $detail and length $title;
+        ++$decade;
+      }
+
+      my $intention = opening_intention($Prayer);
+      if (length $intention) {
+        _say_styled($intention, q{intention}, $Palette);
+        print "\n";
+      }
+
+      if (length $Text) {
+        _stream_styled($Text, _prayer_role($Prayer), $Stream, $Palette);
+      }
+      _prompt_continue($Stream) if $o->i and length $Text;
+    }
+
+    last ROSARY if not $o->unceasingly;
   }
 
   $Stream->restore_terminal;
