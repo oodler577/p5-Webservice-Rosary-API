@@ -367,10 +367,12 @@ descriptive exception unless stale-cache fallback is available.
 
 =item C<details("joyful" | "glorious" | "sorrowful" | "luminous")>
 
-Returns the detailed recitation data for the named Mystery, including the
-decade descriptions used by C<avemaria --fully>. Invalid Mystery names return
-an empty string without making an HTTP request. Network and decoding failures
-are handled in the same way as C<day>.
+Returns the detailed recitation data for the named Mystery. The C<avemaria>
+client uses this data to present each decade's Mystery title and Fruit of the
+Mystery during ordinary prayer mode; C<--fully> additionally displays the
+longer meditation text supplied by the API. Invalid Mystery names return an
+empty string without making an HTTP request. Network and decoding failures are
+handled in the same way as C<day>.
 
   my $details = $Rosary->details("joyful");
 
@@ -400,110 +402,276 @@ Rosary API calls that are not currently supported:
 
 =head1 THE C<avemaria> UTILITY
 
-The C<avemaria> commandline Rosary client is installed with this module. The
-following is essentially verbatim from the client using the C<help> command.
+The C<avemaria> commandline Rosary client is installed with this distribution.
+It uses this API module for remote Rosary data, L<Webservice::Rosary::Stream>
+for timed interactive text streaming, and L<Webservice::Rosary::Tradition> for
+small pieces of traditional presentation metadata that are not supplied by the
+remote API.
 
-Note: Commandline options may change to accomodate feedback. This note will
-be removed once the cli UX settles.
+Commandline options may continue to evolve as the prayer UX is refined.
 
-B<Quick Start>
+=head2 Quick Start
 
-  > avemaria                         # no arguments
-  > ... runs through the recitation of the Rosary for today, equivalent,
-    to,
+With no arguments, C<avemaria> selects today's Mystery and enters prayer mode:
 
-  > avemaria $(date "+%A") --pray    # `date` prints today's day of week
+  avemaria
 
-B<Getting Help>
+Prayer-oriented options may also be supplied without an explicit day or
+Mystery; today's Mystery is selected automatically. For example:
 
-  > avemaria help
-  > ... prints help section
+  avemaria --scroll --color
 
-B<Learning More>
+An explicit day or Mystery without a prayer-mode option prints its Mystery
+summary instead:
 
-  > avemaria about
-  > ... prints an "about" section
+  avemaria Monday
+  avemaria Sorrowful
 
-B<Functional Commands>
+Valid day values are Sunday through Saturday. Valid Mystery names are
+C<Joyful>, C<Sorrowful>, C<Glorious>, and C<Luminous>.
 
-There are 2 types of functional commands. One set of commands returns a URL
-for an MP3, which may then be piped into another program to download it. The
-other set of commands displays the specified Mystery (by day of the week
-or actual name of the Mystery), so that the user may be guided through the
-specified Mystery of the Rosary - from start to finish.
+=head2 Help and Background
 
-B<Usage - to print MP3 URL to STDOUT:>
+  avemaria help
+  avemaria --help
+  avemaria about
+  avemaria --about
 
-  avemaria [today | yesterday | tomorrow | random]
+C<help> prints command usage. C<about> prints background information about the
+Rosary.
 
-I<Example 1>
+=head2 MP3 Commands
 
-  > avemaria today
-  > https://dailyrosary.cf/audio-rosary-sorrowful-mysteries.mp3
+The following commands print the full URL of the corresponding MP3 recording to
+STDOUT:
 
-I<Example 2>
+  avemaria today
+  avemaria yesterday
+  avemaria tomorrow
+  avemaria random
 
-  > curl -O \$(avemaria random) -w "\\nDownloaded file: %{filename_effective}\\n"
-    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                   Dload  Upload   Total   Spent    Left  Speed
-  100 31.5M  100 31.5M    0     0  2374k      0  0:00:13  0:00:13 --:--:-- 5043k
+This makes the command convenient to combine with another program, for example:
 
-  Downloaded file: audio-rosary-sorrowful-mysteries.mp3
-  >
+  curl -O "$(avemaria random)"
 
-B<Usage - to Pray the Rosary in the commandline:>
+=head2 Prayer Mode
 
-  avemaria DAY_OR_MYSTERY [--pray] [-i] [-t] [--fully] [--scroll]
-                           [--sleep=0.N] [--speed=N] [--between=N]
+The general prayer form is:
 
-  Valid DAY_OR_MYSTERY values:
+  avemaria [DAY_OR_MYSTERY] [--pray] [--unceasingly]
+           [--scroll] [--fully] [-i] [-t]
+           [--sleep=0.N] [--speed=N] [--between=N]
+           [--nocontrols]
+           [--color [--dark | --light]]
 
-    Joyful, Sorrowful, Luminous, Glorious, Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, or Saturday
+C<--pray> streams the selected Rosary prayer by prayer.
 
-  Optional flags:
+C<--unceasingly> continuously repeats the same selected Rosary until the user
+stops it. It implies C<--pray>, so these are both valid:
 
-  --pray     : automatically prints prayers character by character; default delay is 0.04 seconds.
-   -i        : user must hit <RETURN> after each prayer (and description, if used with "--fully")
-   -t        : user must hit <RETURN> after each description (requires --fully)
-  --fully    : prints the full description of the current Mystery's Decade, including the Fruit of the Mystery
-  --scroll   : keeps prior prayers visible instead of clearing the terminal between prayers
-  --sleep    : base delay before each new character is printed. Default is 0.04 seconds.
-  --speed    : initial text speed multiplier. Default is 1.0.
-  --between  : pause between prayers, in seconds. Default is 0.75.
-  --nocontrols : disables live keyboard controls.
+  avemaria --unceasingly
+  avemaria --pray --unceasingly
 
-  While --pray is streaming in an interactive terminal:
+Using both is intentionally redundant rather than an error. A completed Rosary
+starts again with its prayer and decade counters reset. The already loaded API
+data is reused rather than being unnecessarily fetched again, and live speed
+changes are retained between cycles.
 
-    SPACE/p : pause or resume
-    + or =  : speed up immediately
-    - or _  : slow down immediately
-    0       : reset to the initial --speed value
+=head2 Mystery and Intention Presentation
 
-I<Example 3>
+Mystery-set headings are displayed in uppercase. During prayer mode each new
+decade presents its individual Mystery title and its Fruit of the Mystery from
+the API. C<--fully> additionally displays the longer meditation text for that
+decade.
 
-  Used without options, it just prints the name of the Mystery
+The introductory intentions are local traditional presentation metadata rather
+than fields supplied by the remote API. The introductory Our Father is presented
+as being offered:
 
-  > avemaria Monday
-  > Monday - The Joyful Mysteries
-  >
+  For the intentions and well-being of Pope Leo XIV.
 
-  > avemaria Sorrowful
-  > Friday - The Sorrowful Mysteries
-  >
+The first three Hail Marys are presented for an increase in Faith, Hope, and
+Charity, respectively. These values are kept in
+L<Webservice::Rosary::Tradition> rather than being represented as remote API
+data.
 
-I<Example 4>
+If the secondary Mystery-details request fails, C<avemaria> warns and continues
+the basic Rosary instead of making the entire prayer unusable.
 
-  > avemaria Friday --pray -t --fully
-  > .. clears screen, the plays the specified Mystery (Sorrowful in this case),
-    while pausing only at the beginning of each Mystery after the description has
-    been printed.
+=head2 Scrolling and Reduced-Clutter Presentation
 
-I<Example 5>
+C<--scroll> keeps previous prayer text visible instead of clearing the terminal
+between prayers. It is intentionally quieter than the non-scrolling display:
+the overall Mystery heading and live-control reminder are shown initially, and
+section headings are shown again when a new decade begins rather than before
+every individual prayer.
 
-  Run with absolutely no subcommands or flags, runs "--pray" for today's Mystery,
+With C<--unceasingly --scroll>, the overall heading is shown again when a new
+Rosary cycle starts, while ordinary repeated prayers remain uncluttered.
 
-  > avemaria
-  > .. clears screen, the plays the specified Mystery for today ...
+Without C<--scroll>, the terminal is cleared as the client advances through the
+Rosary.
+
+=head2 Detailed and Manual-Pacing Options
+
+=over 4
+
+=item C<--fully>
+
+Adds the full decade meditation to the Mystery title and Fruit of the Mystery
+that are already shown in normal prayer mode.
+
+=item C<-i>
+
+Requires C<E<lt>RETURNE<gt>> after each prayer. When C<--fully> is in use, the
+meditation presentation is also included in the manual pacing flow.
+
+=item C<-t>
+
+Requires C<E<lt>RETURNE<gt>> after each decade description. C<-t> requires
+C<--fully>.
+
+=back
+
+=head2 Timing and Live Controls
+
+The timing options are independent of presentation options:
+
+=over 4
+
+=item C<--sleep=SECONDS>
+
+Sets the base delay before each streamed character. The default is 0.04
+seconds. The value must be zero or greater.
+
+=item C<--speed=MULTIPLIER>
+
+Sets the initial text-speed multiplier. The default is 1.0 and the value must be
+greater than zero. Live speed changes are relative to this starting value.
+
+=item C<--between=SECONDS>
+
+Sets the pause between prayers. The default is 0.75 seconds and the value must
+be zero or greater.
+
+=item C<--nocontrols>
+
+Disables the live single-key controls. C<-i> and C<-t> Return prompts still
+work. In C<--unceasingly --nocontrols> mode, use C<Ctrl-C> to stop.
+
+=back
+
+When live controls are enabled and STDIN is interactive, the following keys are
+available while text is streaming and while timed waits are in progress:
+
+  SPACE or p   pause or resume
+  + or =       speed up immediately
+  - or _       slow down immediately
+  0            reset to the initial --speed value
+  q            ask: Quit y/N?
+
+A negative response to the quit prompt resumes the prayer. A confirmed quit
+restores the terminal, prints:
+
+  Pray the Rosary every day, +JMJ+
+
+and exits successfully.
+
+The terminal is also restored when the client handles C<SIGINT> or C<SIGTERM>,
+so interactive terminal mode should not be left altered after interruption.
+
+=head2 Color
+
+Color is strictly opt-in:
+
+  avemaria --color
+  avemaria --color --dark
+  avemaria --color --light
+
+C<--color> by itself uses the dark-background profile. C<--dark> and C<--light>
+are mutually exclusive and are meaningful only with C<--color>. No color is
+emitted when C<--color> is absent. Color is also suppressed for non-terminal
+output, C<TERM=dumb>, or when the C<NO_COLOR> environment variable is present.
+
+The palette is organized by devotional role rather than applying arbitrary
+color to every line:
+
+=over 4
+
+=item *
+
+Hail Marys and the Joyful Mysteries use a light Marian blue.
+
+=item *
+
+Our Fathers use a subdued green.
+
+=item *
+
+Sorrowful Mystery headings use a dark red or maroon family.
+
+=item *
+
+Glorious Mystery headings use a warm yellow or gold family.
+
+=item *
+
+Luminous Mystery headings use a gentle violet or lavender family.
+
+=item *
+
+Each individual Mystery title is bold in the color of its Mystery family.
+
+=item *
+
+The Apostles' Creed, Hail Holy Queen, and the closing C<O God, Whose Only
+Begotten Son...> prayer use a bold neutral treatment: near-white on the dark
+profile and near-black on the light profile.
+
+=back
+
+The closing C<O God, Whose Only Begotten Son...> prayer is folded to 72 columns
+for readability in the terminal.
+
+=head2 Examples
+
+Pray today's Rosary with the low-clutter scrolling presentation:
+
+  avemaria --scroll
+
+Use the dark-background color profile (the default profile for C<--color>):
+
+  avemaria --scroll --color
+
+Use a light-background terminal profile:
+
+  avemaria --scroll --color --light
+
+Pray the Sorrowful Mysteries with the full decade meditations:
+
+  avemaria Sorrowful --pray --fully --scroll
+
+Pause after each decade description:
+
+  avemaria Friday --pray --fully -t
+
+Repeat today's Rosary continuously until stopped:
+
+  avemaria --unceasingly --scroll --color
+
+=head2 Option Composition
+
+The options are intended to compose rather than define unrelated modes.
+C<--unceasingly> controls repetition and implies prayer mode; C<--scroll> only
+changes screen presentation; C<--fully> controls meditation detail; the timing
+options control pacing; and the color options control styling. Consequently a
+command such as:
+
+  avemaria Luminous --unceasingly --scroll --fully --color --light --speed=1.25
+
+has a straightforward meaning: repeatedly pray the Luminous Mysteries, preserve
+prior text, include full decade meditations, use the light-background color
+profile, and start at 1.25 times the normal text speed.
 
 =head1 ENVIRONMENT
 
