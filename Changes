@@ -43,6 +43,9 @@
         +JMJ+
 
 0.1.7	Fri Aug 28 03:10:00 AM CDT 2026
+        - --unceasingly will loop the Rosary until you hit "q" or ctrl-c, e.g.,
+          avemaria --pray --unceasingly # will run continuously until interrupted;
+          try wit --scroll and --color for a nicer impact (see POD and below) 
 	- added traditional opening intentions: the first Our Father for the
 	  intentions and well-being of Pope Leo XIV, followed by Hail Marys for
 	  an increase in Faith, Hope, and Charity
