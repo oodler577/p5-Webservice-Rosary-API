@@ -593,7 +593,7 @@ sub PrayTheRosary {
     speed    => $o->speed,
     controls => $o->controls,
     on_quit  => sub {
-      print "\nPray the Rosary every day, +JMJ+\n";
+      print "\nRemember to pray the Rosary every day! +JMJ+\n";
       exit EXIT_SUCCESS;
     },
   );
