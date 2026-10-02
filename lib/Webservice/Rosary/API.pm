@@ -600,7 +600,11 @@ color to every line:
 
 =item *
 
-Hail Marys and the Joyful Mysteries use a light Marian blue.
+Hail Marys alternate between a light Marian blue and a neutral foreground,
+starting with blue for the introductory Hail Marys and again at the beginning
+of each decade. The neutral alternate is soft white on the dark-background
+profile and charcoal on the light-background profile. Joyful Mystery headings
+remain light Marian blue.
 
 =item *
 
@@ -817,4 +821,3 @@ Rosary tends to be highly personal; so please let me know what kind of
 Brett Estrade L<< <oodler@cpan.org> >>
 
 +Deo Gratias+
-
