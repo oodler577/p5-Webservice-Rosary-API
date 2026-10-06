@@ -612,7 +612,7 @@ EOF
 
 sub PrayTheRosary {
   my ($Rosary, $subcommand, $ARGV) = xshift_and_deref @_;
-  my $follow_calendar = not defined($subcommand) || not length($subcommand);
+  my $follow_calendar = ! defined($subcommand) || ! length($subcommand);
   $subcommand = _today_day() if $follow_calendar;
 
   my $o = Getopt2h2o $ARGV,
